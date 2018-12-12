@@ -44,9 +44,10 @@ model_sequential_dense.add(Dropout(dropout_prob_parallel_dense))
 # Merge the two parallel models
 model_full = Sequential()
 model_full.add(Concatenate([model_sequential_rnn,model_sequential_dense]))
-for i in range(1, dense_layer_sequential_sizes.size - 1):
+for i in range(dense_layer_sequential_sizes.size - 1):
     model_full.add(Dense(dense_layer_sequential_sizes[i],
         activation='relu',kernel_regularizer=l2(lambda_reg_dense)))
+model_full.add(Dense(dense_layer_sequential_sizes[-1], activation='linear'))
 
 # Selective Hinge Loss and Binary Accuracy
 # y_pred should be -1 if not skipped, 0 if does not have to be predicted, 1 if skipped
@@ -57,12 +58,12 @@ def selective_hinge(y_true, y_pred):
 def selective_binary_accuracy(y_true, y_pred):
     return K.mean(K.equal(y_true, K.sign(y_pred)), axis=-1)
 
-model_full.add(Dense(dense_layer_sequential_sizes[-1], activation='linear'))
-
 callbacks = [EarlyStopping(monitor='val_loss', patience=5),
              ModelCheckpoint(filepath='model/keras_{epoch:02d}-{val_loss:.4f}.h5', monitor='val_loss', save_best_only=False)]
 
 model_full.compile(loss='selective_hinge', optimizer='Adam',metrics=['selective_binary_accuracy'])
 
-plot_model(model_full, to_file='model/keras.png')
+plot_model(model_sequential_rnn, to_file='model/keras_rnn.png')
+plot_model(model_sequential_dense, to_file='model/keras_dense.png')
+plot_model(model_full, to_file='model/keras_full.png')
 # print(model_full.summary())
