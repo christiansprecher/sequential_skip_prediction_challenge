@@ -97,7 +97,22 @@ class Datagen:
            'long_pause_before_play', 'hist_user_behavior_n_seekfwd',
            'hist_user_behavior_n_seekback', 'hist_user_behavior_is_shuffle',
            'hour_of_day', 'date', 'premium', 'context_type',
-           'hist_user_behavior_reason_start', 'hist_user_behavior_reason_end'], axis=1)
+           'hist_user_behavior_reason_start', 'hist_user_behavior_reason_end',
+           'track_id'], axis=1)
+        time_list = np.append(time_list,time.process_time())
+
+        # Convert and normalize data
+        #Do one-hot-encoding for mode and key
+        track = pd.get_dummies(track, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
+
+        #Normalize data
+        tmp2 = track.drop(['session_id'],axis=1)
+        t_min = tmp2.min()
+        t_max = tmp2.max()
+
+        tmp2_normal = (tmp2 - t_min) / (t_max - t_min)
+        track = pd.DataFrame(track['session_id']).join(tmp2_normal)
+
         time_list = np.append(time_list,time.process_time())
 
         # Fill up sessions
@@ -107,11 +122,13 @@ class Datagen:
 
         data = np.transpose(np.array([np.zeros(n_rows, dtype=dt) for dt in track.dtypes]))
         sessions = pd.DataFrame(data)
+        sessions.columns = track.columns
 
         for ix, item in session_ids.items():
             chk = track_grouped.get_group(item)
             L_s = len(chk)
             sessions.iloc[ix*20:(ix*20+L_s), :] = chk.values
+            # sessions.iloc[ix*20+L_s:(ix+1)*20,"session_id"] = chk[0,"session_id"]
         time_list = np.append(time_list,time.process_time())
 
         # Create skip information and output vector
@@ -145,8 +162,9 @@ class Datagen:
         if verbosity:
             # print(result.head())
             print("Time [in minutes] used for loading batch: %4.2f, Merging tracks: %4.2f" % (time_list[0],time_list[1]),
-            "Drop unwanted columns: %4.2f, Fill up sessions: %4.2f" % (time_list[2],time_list[3]),
-            "Create skip information: %4.2f, Save to file %4.2f" % (time_list[4],time_list[5]))
+            "Drop unwanted columns: %4.2f, Normalize data: %4.2f" % (time_list[2],time_list[3]),
+            "Fill up sessions: %4.2f, Create skip information: %4.2f" % (time_list[4],time_list[5]),
+            "Save to file %4.2f" % (time_list[6]))
 
         return
 
