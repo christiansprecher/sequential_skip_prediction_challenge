@@ -4,6 +4,8 @@ from tqdm import tqdm
 import glob
 import os
 import time
+from joblib import Parallel, delayed
+import multiprocessing
 
 class Datagen:
 
@@ -61,15 +63,19 @@ class Datagen:
 
         print("Number of training files found: %u" % num_files)
 
-        for file in all_training_files:
-            iter = iter + 1
-            self.load_training_batch(file,path_output)
+        num_cores = min(multiprocessing.cpu_count(),8)
+        Parallel(n_jobs=num_cores)(delayed(self.load_training_batch)(file,path_output) for file in all_training_files)
 
-            end = time.process_time()
-            print("Time used: %4.2f minutes for file %u/%u" % ((end-start)/60,iter,num_files))
-
+        # for file in all_training_files:
+        #     iter = iter + 1
+        #     self.load_training_batch(file,path_output)
+        #
+        #     end = time.process_time()
+        #     print("Time used: %4.2f minutes for file %u/%u" % ((end-start)/60,iter,num_files))
 
     def load_training_batch(self,file,path_output,verbosity=True):
+        print("Loading of file %s started" % os.path.basename(file))
+
         start = time.process_time()
         time_list = np.asarray([])
 
@@ -80,7 +86,7 @@ class Datagen:
         # Merge sessions and tracks
         batch_tmp = batch.copy()
         batch_tmp["Order"] = np.arange(len(batch_tmp))
-        tmp = batch_tmp.merge(self.tracks, how='left', on="track_id").set_index("Order").ix[np.arange(len(batch_tmp)), :]
+        tmp = batch_tmp.merge(self.tracks, how='left', on="track_id").set_index("Order").iloc[np.arange(len(batch_tmp)), :]
         tmp.reset_index(drop=True)
         time_list = np.append(time_list,time.process_time())
 
@@ -94,26 +100,25 @@ class Datagen:
            'hist_user_behavior_reason_start', 'hist_user_behavior_reason_end'], axis=1)
         time_list = np.append(time_list,time.process_time())
 
-        # Create session specific information
+        # Fill up sessions
         track_grouped = track.groupby("session_id")
-        sessions = pd.DataFrame(columns=track.columns)
+        session_ids = batch["session_id"].drop_duplicates().reset_index(drop=True)
+        n_rows = len(session_ids) * 20;
 
-        # print(sessions.shape)
-        # print(batch.shape)
-        for item in tqdm(batch["session_id"].drop_duplicates()):
+        data = np.transpose(np.array([np.zeros(n_rows, dtype=dt) for dt in track.dtypes]))
+        sessions = pd.DataFrame(data)
+
+        for ix, item in session_ids.items():
             chk = track_grouped.get_group(item)
             L_s = len(chk)
-            for i in range(20-L_s):
-                s = pd.Series([0]*chk.shape[1], index=chk.columns, name='zero')
-                chk = chk.append(s)
-            sessions = sessions.append(chk.drop(["session_id", "track_id"], axis=1), ignore_index=True)
+            sessions.iloc[ix*20:(ix*20+L_s), :] = chk.values
         time_list = np.append(time_list,time.process_time())
 
         # Create skip information and output vector
         k_y = tmp[["session_id", "skip_2"]]
         ky_grouped = k_y.groupby("session_id")
         kys = []
-        for item in tqdm(k_y["session_id"].drop_duplicates()):
+        for item in k_y["session_id"].drop_duplicates():
             chk = ky_grouped.get_group(item)
             L_s = len(chk)
             L_sh = int(L_s/2)
@@ -138,11 +143,10 @@ class Datagen:
         time_list = (time_list - start) / 60;
 
         if verbosity:
-            print(result.head())
+            # print(result.head())
             print("Time [in minutes] used for loading batch: %4.2f, Merging tracks: %4.2f" % (time_list[0],time_list[1]),
-            "Drop unwanted columns: %4.2f, Create session information: %4.2f" % (time_list[2],time_list[3]),
+            "Drop unwanted columns: %4.2f, Fill up sessions: %4.2f" % (time_list[2],time_list[3]),
             "Create skip information: %4.2f, Save to file %4.2f" % (time_list[4],time_list[5]))
-
 
         return
 
