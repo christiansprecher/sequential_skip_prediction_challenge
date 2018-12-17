@@ -9,8 +9,9 @@ import multiprocessing
 
 class Datagen:
 
-    def __init__(self,folder_path):
+    def __init__(self,folder_path,verbosity=True):
         self.folder_path = folder_path
+        self.verbosity = verbosity
 
         if self.check_existance(folder_path):
             self.load_tracks()
@@ -73,7 +74,7 @@ class Datagen:
         #     end = time.process_time()
         #     print("Time used: %4.2f minutes for file %u/%u" % ((end-start)/60,iter,num_files))
 
-    def load_training_batch(self,file,path_output,verbosity=True):
+    def load_training_batch(self,file,path_output):
         print("Loading of file %s started" % os.path.basename(file))
 
         start = time.process_time()
@@ -102,17 +103,15 @@ class Datagen:
         time_list = np.append(time_list,time.process_time())
 
         # Convert and normalize data
-        #Do one-hot-encoding for mode and key
+            #Do one-hot-encoding for mode and key
         track = pd.get_dummies(track, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
 
-        #Normalize data
+            #Normalize data
         tmp2 = track.drop(['session_id'],axis=1)
         t_min = tmp2.min()
         t_max = tmp2.max()
-
         tmp2_normal = (tmp2 - t_min) / (t_max - t_min)
         track = pd.DataFrame(track['session_id']).join(tmp2_normal)
-
         time_list = np.append(time_list,time.process_time())
 
         # Fill up sessions
@@ -156,15 +155,59 @@ class Datagen:
         result.to_csv(output_file_path, index=False)
         time_list = np.append(time_list,time.process_time())
 
+        #create sessions_based_information
+        #Remove unwanted information
+        session_fixed = batch.drop(['session_position', 'track_id',
+           'skip_1', 'skip_2', 'skip_3', 'not_skipped', 'context_switch',
+           'no_pause_before_play', 'short_pause_before_play',
+           'long_pause_before_play', 'hist_user_behavior_n_seekfwd',
+           'hist_user_behavior_n_seekback',
+           'hist_user_behavior_reason_start', 'hist_user_behavior_reason_end'], axis=1)
+        session_fixed_ids = session_fixed["session_id"].drop_duplicates().reset_index(drop=True)
+        session_grouped = session_fixed.groupby("session_id")
+
+        #Create empty variable to store values in
+        n_rows = len(session_fixed_ids);
+        data = np.transpose(np.array([np.empty(n_rows, dtype=dt) for dt in session_fixed.dtypes]))
+        session_single = pd.DataFrame(data)
+        session_single.columns = session_fixed.columns
+
+        #Fill in session information with information of last element of first half
+        for ix, item in session_fixed_ids.items():
+            chk = session_grouped.get_group(item)
+            L_s = len(chk)
+            L_sh = int(L_s/2) - 1
+            session_single.iloc[ix] = chk.iloc[L_sh]
+
+        #Modify date and perform one-hot-encoding
+        session_single['date'] = pd.to_datetime(session_single['date'],
+            errors='coerce').apply(lambda x: x.dayofyear)
+        session_single = pd.get_dummies(session_single,
+            prefix=['shuffle', 'premium', 'context'],
+            columns=['hist_user_behavior_is_shuffle', 'premium','context_type'])
+        session_single = session_single.drop(['session_id','shuffle_False',
+            'premium_False','context_user_collection'],axis=1)
+
+        #Normalize data
+        s_min = session_single.min()
+        s_max = session_single.max()
+        tmp3 = (session_single - s_min) / (s_max - s_min)
+        session_finish = pd.DataFrame(session_ids).join(tmp3)
+
+        #Save to csv file
+        output_file_path = path_output + '/session_'+ os.path.basename(file)
+        session_finish.to_csv(output_file_path, index=False)
+        time_list = np.append(time_list,time.process_time())
+
         # Print times
         time_list = (time_list - start) / 60;
-
-        if verbosity:
+        if self.verbosity:
             # print(result.head())
+            print("Loading of file %s finished" % os.path.basename(file))
             print("Time [in minutes] used for loading batch: %4.2f, Merging tracks: %4.2f" % (time_list[0],time_list[1]),
-            "Drop unwanted columns: %4.2f, Normalize data: %4.2f" % (time_list[2],time_list[3]),
-            "Fill up sessions: %4.2f, Create skip information: %4.2f" % (time_list[4],time_list[5]),
-            "Save to file %4.2f" % (time_list[6]))
+            "Drop unwanted columns: %4.2f, Normalize data: %4.2f," % (time_list[2],time_list[3]),
+            "Fill up sessions: %4.2f, Create skip information: %4.2f," % (time_list[4],time_list[5]),
+            "Save to file: %4.2f, Create Session fixed information: %4.2f" % (time_list[6],time_list[7]))
 
         return
 
