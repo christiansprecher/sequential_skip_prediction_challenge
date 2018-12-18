@@ -6,12 +6,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--folder', required=True)
     parser.add_argument('-v', '--verbosity', required=False, default=1)
+    parser.add_argument('-r', '--training', required=False, default=0)
+    parser.add_argument('-t', '--test', required=False, default=0)
 
     io_args = parser.parse_args()
     folder = io_args.folder
     verbosity = io_args.verbosity
+    training = io_args.training
+    test = io_args.test
 
-
-    data = Datagen(folder,verbosity)
-
-    data.load_training_data()
+    if test or training:
+        data = Datagen(folder,verbosity)
+        if(training):
+            data.load_training_data()
+        if(test):
+            data.load_test_data()
+    else:
+        parser.print_help()

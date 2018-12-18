@@ -110,22 +110,18 @@ class Datagen:
         if not os.path.exists(path_output):
             os.makedirs(path_output)
 
-        all_training_files = glob.glob(path + "/*.csv")
+        all_training_files = glob.glob(path + "/log_input*.csv")
         start = time.process_time()
-        iter = 0
-        num_files = len(all_training_files)
 
+        num_files = len(all_training_files)
         print("Number of training files found: %u" % num_files)
 
         num_cores = min(multiprocessing.cpu_count(),8)
         Parallel(n_jobs=num_cores)(delayed(self.load_training_batch)(file,path_output) for file in all_training_files)
 
-        # for file in all_training_files:
-        #     iter = iter + 1
-        #     self.load_training_batch(file,path_output)
-        #
-        #     end = time.process_time()
-        #     print("Time used: %4.2f minutes for file %u/%u" % ((end-start)/60,iter,num_files))
+        end = time.process_time()
+        print("Time used for processing all training files: %4.2f" % ((end-start)/60))
+        return
 
     def load_training_batch(self,file,path_output):
         print("Loading of file %s started" % os.path.basename(file))
@@ -137,6 +133,7 @@ class Datagen:
         batch = pd.read_csv(file).rename(columns={"track_id_clean": "track_id"})
         time_list = np.append(time_list,time.process_time())
 
+        # Start with item based information
         # Merge sessions and tracks
         batch_tmp = batch.copy()
         batch_tmp["Order"] = np.arange(len(batch_tmp))
@@ -260,59 +257,158 @@ class Datagen:
 
         return
 
+
+    def load_test_data(self):
+        path = self.folder_path + "/test_set"
+        path_output = self.folder_path + "/test_set_preproc"
+
+        if not os.path.exists(path_output):
+            os.makedirs(path_output)
+
+        all_test_files = glob.glob(path + "/*input*.csv")
+        start = time.process_time()
+
+        num_files = len(all_test_files)
+        print("Number of test files found: %u" % num_files)
+
+        num_cores = min(multiprocessing.cpu_count(),8)
+        Parallel(n_jobs=num_cores)(delayed(self.load_test_batch)(file,path_output) for file in all_test_files)
+
+        end = time.process_time()
+        print("Time used for processing all test files: %4.2f minutes" % ((end-start)/60))
+        return
+
+    def load_test_batch(self,file,path_output):
+        print("Loading of file %s started" % os.path.basename(file))
+
+        #load files
+        file_ph = file.replace('input','prehistory')
+        log_ip = pd.read_csv(file).rename(columns={"track_id_clean": "track_id"})
+        log_ph = pd.read_csv(file_ph).rename(columns={"track_id_clean": "track_id"})
+
+        # Start with item based information
+        # Merge sessions and tracks
+        log_ip_tmp = log_ip.copy()
+        log_ip_tmp["Order"] = np.arange(len(log_ip_tmp))
+        tmp_ip = log_ip_tmp.merge(self.tracks, how='left', on="track_id").set_index("Order").iloc[np.arange(len(log_ip_tmp)), :]
+        tmp_ip.reset_index(drop=True)
+
+        log_ph_tmp = log_ph.copy()
+        log_ph_tmp["Order"] = np.arange(len(log_ph_tmp))
+        tmp_ph = log_ph_tmp.merge(self.tracks, how='left', on="track_id").set_index("Order").iloc[np.arange(len(log_ph_tmp)), :]
+        tmp_ph.reset_index(drop=True)
+
+        # Create session ids frames
+        ip_sessions = log_ip["session_id"]
+        ph_sessions = log_ph["session_id"]
+
+        # Drop unwanted data
+        ip_batch = tmp_ip.drop(['session_position', 'session_length',
+            'track_id','session_id'], axis=1)
+
+        ph_batch = tmp_ph.drop(['session_position', 'session_length',
+            'skip_1', 'skip_2', 'skip_3', 'not_skipped', 'context_switch',
+            'no_pause_before_play', 'short_pause_before_play',
+            'long_pause_before_play', 'hist_user_behavior_n_seekfwd',
+            'hist_user_behavior_n_seekback', 'hist_user_behavior_is_shuffle',
+            'hour_of_day', 'date', 'premium', 'context_type',
+            'hist_user_behavior_reason_start', 'hist_user_behavior_reason_end',
+            'track_id', 'session_id'], axis=1)
+
+        # Get one-hot encoding
+        tracks_ip = pd.get_dummies(ip_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
+        tracks_ph = pd.get_dummies(ph_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
+
+        # Normalize columns
+        tmp_ip_normal = (tracks_ip - self.t_min) / (self.t_max - self.t_min)
+        tmp_ph_normal = (tracks_ph - self.t_min) / (self.t_max - self.t_min)
+        tracks_ip = pd.DataFrame(ip_sessions).join(tmp_ip_normal)
+        tracks_ph = pd.DataFrame(ph_sessions).join(tmp_ph_normal)
+
+        # Merge input and prehistory and fill up sessions
+        track_ip_grouped = tracks_ip.groupby("session_id")
+        track_ph_grouped = tracks_ph.groupby("session_id")
+        session_ids = ip_sessions.drop_duplicates().reset_index(drop=True)
+        n_rows = len(session_ids) * 20;
+
+        data = np.transpose(np.array([np.zeros(n_rows, dtype=dt) for dt in tracks_ip.dtypes]))
+        sessions = pd.DataFrame(data)
+        sessions.columns = tracks_ip.columns
+
+        for ix, item in session_ids.items():
+            ip = track_ip_grouped.get_group(item)
+            ph = track_ph_grouped.get_group(item)
+            L_ip = len(ip)
+            L_ph = len(ph)
+            sessions.iloc[ix*20:(ix*20+L_ph), :] = ph.values
+            sessions.iloc[(ix*20+L_ph):(ix*20+L_ph+L_ip), :] = ip.values
+
+        # Create skip information and output vector
+        k_y = tmp_ph[["session_id", "skip_2"]]
+        ky_grouped = k_y.groupby("session_id")
+        kys = []
+        for item in k_y["session_id"].drop_duplicates():
+            chk = ky_grouped.get_group(item)
+            L_s = len(chk)
+            ky_tmp = np.array(chk["skip_2"])*2-1
+            ky_tmp = ky_tmp.reshape((-1,1))
+            kys.append(np.pad(ky_tmp, [(0,20-L_s),(0,0)], 'constant'))
+        kys = np.array(kys)
+        kys_shape = kys.shape
+        kys = np.reshape(kys,(kys_shape[0]*kys_shape[1],kys_shape[2]))
+        df_kys = pd.DataFrame(data=kys, columns=["y1"], dtype="int")
+        result = pd.concat([sessions, df_kys], axis=1)
+
+        # save to csv file
+        output_file_path = path_output + '/' + os.path.basename(file)
+        output_file_path = output_file_path.replace('input_','')
+        result.to_csv(output_file_path, index=False)
+
+        #create sessions_based_information
+        #Remove unwanted information
+        session_fixed = log_ph.drop(['session_position', 'track_id',
+           'skip_1', 'skip_2', 'skip_3', 'not_skipped', 'context_switch',
+           'no_pause_before_play', 'short_pause_before_play',
+           'long_pause_before_play', 'hist_user_behavior_n_seekfwd',
+           'hist_user_behavior_n_seekback',
+           'hist_user_behavior_reason_start', 'hist_user_behavior_reason_end'], axis=1)
+        session_fixed_ids = session_fixed["session_id"].drop_duplicates().reset_index(drop=True)
+        session_grouped = session_fixed.groupby("session_id")
+
+        #Create empty variable to store values in
+        n_rows = len(session_fixed_ids);
+        data = np.transpose(np.array([np.empty(n_rows, dtype=dt) for dt in session_fixed.dtypes]))
+        session_single = pd.DataFrame(data)
+        session_single.columns = session_fixed.columns
+
+        #Fill in session information with information of last element of first half
+        for ix, item in session_fixed_ids.items():
+            chk = session_grouped.get_group(item)
+            session_single.iloc[ix] = chk.iloc[-1]
+
+        #Modify date and perform one-hot-encoding
+        session_single['date'] = pd.to_datetime(session_single['date'],
+            errors='coerce').apply(lambda x: x.dayofyear)
+        session_single = pd.get_dummies(session_single,
+            prefix=['shuffle', 'premium', 'context'],
+            columns=['hist_user_behavior_is_shuffle', 'premium','context_type'])
+        session_single = session_single.drop(['session_id','shuffle_False',
+            'premium_False','context_user_collection'],axis=1)
+
+        #Normalize data
+        tmp3 = (session_single - self.s_min) / (self.s_max - self.s_min)
+        session_finish = pd.DataFrame(session_ids).join(tmp3)
+
+        #Save to csv file
+        output_file_path = path_output + '/session_'+ os.path.basename(file)
+        output_file_path = output_file_path.replace('input_','')
+        session_finish.to_csv(output_file_path, index=False)
+
+        return
+
     def check_existance(self,path):
         exists = os.path.isfile(path) or os.path.exists(path)
 
         if not exists:
             print('File not found ' + path)
         return exists
-
-    #
-    #
-    #
-    #
-    # def mergeLeftInOrder(x, y, on=None):
-    #     x = x.copy()
-    #     x["Order"] = np.arange(len(x))
-    #     z = x.merge(y, how='left', on=on).set_index("Order").ix[np.arange(len(x)), :]
-    #     return z.reset_index(drop=True)
-    #
-    #
-    #
-    # pd_playlist = pd_playlist.rename(columns={"track_id_clean": "track_id"})
-    # tmp = mergeLeftInOrder(pd_playlist, pd_song, on="track_id")
-    # track = tmp.drop(['session_position', 'session_length',
-    #    'skip_1', 'skip_2', 'skip_3', 'not_skipped', 'context_switch',
-    #    'no_pause_before_play', 'short_pause_before_play',
-    #    'long_pause_before_play', 'hist_user_behavior_n_seekfwd',
-    #    'hist_user_behavior_n_seekback', 'hist_user_behavior_is_shuffle',
-    #    'hour_of_day', 'date', 'premium', 'context_type',
-    #    'hist_user_behavior_reason_start', 'hist_user_behavior_reason_end'], axis=1)
-    # track_grouped = track.groupby("session_id")
-    # sessions = pd.DataFrame(columns=track.columns)
-    # for item in tqdm(pd_playlist["session_id"].drop_duplicates()):
-    #     chk = track_grouped.get_group(item)
-    #     L_s = len(chk)
-    #     for i in range(20-L_s):
-    #         s = pd.Series([0]*31, index=chk.columns, name='zero')
-    #         chk = chk.append(s)
-    #     sessions = sessions.append(chk.drop(["session_id", "track_id"], axis=1), ignore_index=True)
-    #
-    # k_y = tmp[["session_id", "skip_2"]]
-    # ky_grouped = k_y.groupby("session_id")
-    # kys = []
-    # for item in tqdm(k_y["session_id"].drop_duplicates()):
-    #     chk = ky_grouped.get_group(item)
-    #     L_s = len(chk)
-    #     L_sh = int(L_s/2)
-    #     ky_tmp = np.array(chk["skip_2"])*2-1
-    #     ky_tmp = np.tile(ky_tmp.reshape((-1,1)), (1,2))
-    #     ky_tmp[:L_sh,1] = 0
-    #     ky_tmp[L_sh:,0] = 0
-    #     kys.append(np.pad(ky_tmp, [(0,20-L_s),(0,0)], 'constant'))
-    # kys = np.array(kys)
-    # df_kys = pd.DataFrame(data=kys, columns=["y1", "y2"], dtype="int")
-    # #TODO append
-    # result = pd.concat([sessions, df_kys], axis=1)
-    #
-    # return result
