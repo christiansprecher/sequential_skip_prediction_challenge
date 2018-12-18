@@ -15,9 +15,12 @@ class Datagen:
 
         if self.check_existance(folder_path):
             self.load_tracks()
+            self.create_feature_limits()
         return
 
     def load_tracks(self):
+
+        print("Loading tracks")
         path = self.folder_path + "/track_features"
         path_output = path + "/pd_song.csv"
 
@@ -28,8 +31,7 @@ class Datagen:
             start = time.process_time()
             self.tracks = pd.read_csv(path_output)
             end = time.process_time()
-            print("Tracks loaded")
-            print("Time used: %4.2f seconds" % (end-start))
+            print("Tracks loaded, time used: %4.2f seconds" % (end-start))
 
         else:
             # Merge two single files
@@ -45,9 +47,60 @@ class Datagen:
             self.tracks.to_csv(path_output,index=False)
 
             end = time.process_time()
-            print("Tracks merged")
-            print("Time used: %4.2f seconds" % (end-start))
+            print("Tracks merged, time used: %4.2f seconds" % (end-start))
 
+        return
+
+    def create_feature_limits(self):
+        # Define static bounds for normalization
+        track_min = {'duration' : 30, 'release_year' : 1950, 'us_popularity_estimate' : 90,
+            'acousticness' : 0, 'beat_strength' : 0, 'bounciness' : 0,
+            'danceability' : 0, 'dyn_range_mean' : 0, 'energy' : 0, 'flatness' : 0,
+            'instrumentalness' : 0, 'liveness' : 0, 'loudness' : -60,
+            'mechanism' : 0, 'organism' : 0, 'speechiness' : 0, 'tempo' : 0, 'time_signature' : 0,
+            'valence' : 0, 'acoustic_vector_0' : -1, 'acoustic_vector_1' : -1,
+            'acoustic_vector_2' : -1, 'acoustic_vector_3' : -1, 'acoustic_vector_4' : -1,
+            'acoustic_vector_5': -1, 'acoustic_vector_6' : -1, 'acoustic_vector_7' : -1,
+            'key_0' : 0, 'key_1' : 0, 'key_2' : 0, 'key_3' : 0, 'key_4' : 0, 'key_5' : 0,
+            'key_6' : 0, 'key_7' : 0, 'key_8' : 0, 'key_9' : 0, 'key_10' : 0, 'mode_major' : 0}
+        track_max = {'duration' : 1800, 'release_year' : 2018, 'us_popularity_estimate' : 100,
+            'acousticness' : 1, 'beat_strength' : 1, 'bounciness' : 1,
+            'danceability' : 1, 'dyn_range_mean' : 40, 'energy' : 1, 'flatness' : 1,
+            'instrumentalness' : 1, 'liveness' : 1, 'loudness' : 4,
+            'mechanism' : 1, 'organism' : 1, 'speechiness' : 1, 'tempo' : 244, 'time_signature' : 5,
+            'valence' : 1, 'acoustic_vector_0' : 1, 'acoustic_vector_1' : 1,
+            'acoustic_vector_2' : 1, 'acoustic_vector_3' : 1, 'acoustic_vector_4' : 1,
+            'acoustic_vector_5': 1, 'acoustic_vector_6' : 1, 'acoustic_vector_7' : 1,
+            'key_0' : 1, 'key_1' : 1, 'key_2' : 1, 'key_3' : 1, 'key_4' : 1, 'key_5' : 1,
+            'key_6' : 1, 'key_7' : 1, 'key_8' : 1, 'key_9' : 1, 'key_10' : 1, 'mode_major' : 1}
+        columns = ['duration', 'release_year', 'us_popularity_estimate', 'acousticness',
+            'beat_strength', 'bounciness', 'danceability', 'dyn_range_mean',
+            'energy', 'flatness', 'instrumentalness', 'liveness', 'loudness',
+            'mechanism', 'organism', 'speechiness', 'tempo', 'time_signature',
+            'valence', 'acoustic_vector_0', 'acoustic_vector_1',
+            'acoustic_vector_2', 'acoustic_vector_3', 'acoustic_vector_4',
+            'acoustic_vector_5', 'acoustic_vector_6', 'acoustic_vector_7', 'key_0',
+            'key_1', 'key_2', 'key_3', 'key_4', 'key_5', 'key_6', 'key_7', 'key_8',
+            'key_9', 'key_10', 'mode_major']
+
+        self.t_min = pd.Series(track_min).reindex(index=columns)
+        self.t_max = pd.Series(track_max).reindex(index=columns)
+
+
+        session_min = {'session_length' : 10, 'hour_of_day' : 0, 'date' : 1, 'shuffle_True' : 0,
+            'premium_True' : 0, 'context_catalog' : 0, 'context_charts' : 0,
+            'context_editorial_playlist' : 0, 'context_personalized_playlist' : 0,
+            'context_radio' : 0}
+        session_max = {'session_length' : 20, 'hour_of_day' : 23, 'date' : 365, 'shuffle_True' : 1,
+            'premium_True' : 1, 'context_catalog' : 1, 'context_charts' : 1,
+            'context_editorial_playlist' : 1, 'context_personalized_playlist' : 1,
+            'context_radio' : 1}
+        columns = ['session_length', 'hour_of_day', 'date', 'shuffle_True', 'premium_True',
+               'context_catalog', 'context_charts', 'context_editorial_playlist',
+               'context_personalized_playlist', 'context_radio']
+
+        self.s_min = pd.Series(session_min).reindex(index=columns)
+        self.s_max = pd.Series(session_max).reindex(index=columns)
         return
 
     def load_training_data(self):
@@ -108,9 +161,7 @@ class Datagen:
 
             #Normalize data
         tmp2 = track.drop(['session_id'],axis=1)
-        t_min = tmp2.min()
-        t_max = tmp2.max()
-        tmp2_normal = (tmp2 - t_min) / (t_max - t_min)
+        tmp2_normal = (tmp2 - self.t_min) / (self.t_max - self.t_min)
         track = pd.DataFrame(track['session_id']).join(tmp2_normal)
         time_list = np.append(time_list,time.process_time())
 
@@ -189,9 +240,7 @@ class Datagen:
             'premium_False','context_user_collection'],axis=1)
 
         #Normalize data
-        s_min = session_single.min()
-        s_max = session_single.max()
-        tmp3 = (session_single - s_min) / (s_max - s_min)
+        tmp3 = (session_single - self.s_min) / (self.s_max - self.s_min)
         session_finish = pd.DataFrame(session_ids).join(tmp3)
 
         #Save to csv file
