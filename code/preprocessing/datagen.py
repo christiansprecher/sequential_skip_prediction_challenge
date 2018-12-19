@@ -8,13 +8,15 @@ import multiprocessing
 
 class Datagen:
 
-    def __init__(self,folder_path,verbosity=True):
+    def __init__(self,folder_path,overwrite=True, verbosity=True):
         self.folder_path = folder_path
         self.verbosity = verbosity
+        self.overwrite = overwrite
 
         if self.check_existance(folder_path):
             self.load_tracks()
             self.create_feature_limits()
+            self.add_all_categories()
         return
 
     def load_tracks(self):
@@ -102,6 +104,48 @@ class Datagen:
         self.s_max = pd.Series(session_max).reindex(index=columns)
         return
 
+    def add_all_categories(self):
+        columns_t = ['session_id', 'duration', 'release_year', 'us_popularity_estimate',
+            'acousticness', 'beat_strength', 'bounciness', 'danceability',
+            'dyn_range_mean', 'energy', 'flatness', 'instrumentalness', 'key',
+            'liveness', 'loudness', 'mechanism', 'mode', 'organism', 'speechiness',
+            'tempo', 'time_signature', 'valence', 'acoustic_vector_0',
+            'acoustic_vector_1', 'acoustic_vector_2', 'acoustic_vector_3',
+            'acoustic_vector_4', 'acoustic_vector_5', 'acoustic_vector_6',
+            'acoustic_vector_7']
+        series = pd.Series([0]*30)
+        series.index = columns_t
+        series["mode"] = 'major'
+
+        track_extended = pd.concat([series] * 13, axis = 1).transpose()
+        for i in range(-1,12,1):
+            track_extended.at[i+1,"key"] = i
+
+        # track_extended["mode"].iloc[0] = 'minor'
+        track_extended.at[0,"mode"] = 'minor'
+
+        self.track_extended = track_extended
+
+        columns_s = ['session_id', 'session_length', 'hist_user_behavior_is_shuffle',
+            'hour_of_day', 'date', 'premium', 'context_type']
+        series = pd.Series([0]*7)
+        series.index = columns_s
+        series["hist_user_behavior_is_shuffle"] = True
+        series["premium"] = True
+        series["context_type"] = 'editorial_playlist'
+
+        session_extended = pd.concat([series] * 5, axis = 1).transpose()
+        session_extended.at[1, "context_type"] = 'charts'
+        session_extended.at[2, "context_type"] = 'catalog'
+        session_extended.at[3, "context_type"] = 'radio'
+        session_extended.at[4, "context_type"] = 'user_collection'
+        session_extended.at[1, "hist_user_behavior_is_shuffle"] = False
+        session_extended.at[1, "premium"] = False
+
+        self.session_extended = session_extended
+
+        return
+
     def load_training_data(self):
         path = self.folder_path + "/training_set"
         path_output = self.folder_path + "/training_set_preproc"
@@ -124,6 +168,12 @@ class Datagen:
 
     def load_training_batch(self,file,path_output):
         print("Loading of file %s started" % os.path.basename(file))
+
+        output_file_path = path_output + '/'+ os.path.basename(file)
+
+        if self.check_existance(output_file_path,False) and not self.overwrite:
+            print("Output file %s already exists" % os.path.basename(file))
+            return
 
         start = time.process_time()
         time_list = np.asarray([])
@@ -153,7 +203,13 @@ class Datagen:
 
         # Convert and normalize data
             #Do one-hot-encoding for mode and key
-        track = pd.get_dummies(track, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
+            #Add first extended state to feature all add_all_categories
+
+        track_ext  = pd.concat([track,self.track_extended], axis = 0)
+        track_ext = pd.get_dummies(track_ext, prefix=['key', 'mode'], columns=['key', 'mode'])
+
+        n = self.track_extended.shape[0]
+        track = track_ext[:-n].drop(['key_-1','key_11','mode_minor'],axis=1)
 
             #Normalize data
         tmp2 = track.drop(['session_id'],axis=1)
@@ -224,10 +280,13 @@ class Datagen:
         #Modify date and perform one-hot-encoding
         session_single['date'] = pd.to_datetime(session_single['date'],
             errors='coerce').apply(lambda x: x.dayofyear)
-        session_single = pd.get_dummies(session_single,
-            prefix=['shuffle', 'premium', 'context'],
+
+        session_ext  = pd.concat([session_single,self.session_extended], axis = 0)
+        session_ext = pd.get_dummies(session_ext, prefix=['shuffle', 'premium', 'context'],
             columns=['hist_user_behavior_is_shuffle', 'premium','context_type'])
-        session_single = session_single.drop(['session_id','shuffle_False',
+
+        n = self.session_extended.shape[0]
+        session_single = session_ext[:-n].drop(['session_id','shuffle_False',
             'premium_False','context_user_collection'],axis=1)
 
         #Normalize data
@@ -283,6 +342,13 @@ class Datagen:
     def load_test_batch(self,file,path_output):
         print("Loading of file %s started" % os.path.basename(file))
 
+        output_file_path = path_output + '/' + os.path.basename(file)
+        output_file_path = output_file_path.replace('input_','')
+
+        if self.check_existance(output_file_path,False) and not self.overwrite:
+            print("Output file %s already exists" % os.path.basename(file))
+            return
+
         start = time.process_time()
         time_list = np.asarray([])
 
@@ -324,8 +390,17 @@ class Datagen:
         time_list = np.append(time_list,time.process_time())
 
         # Get one-hot encoding
-        tracks_ip = pd.get_dummies(ip_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
-        tracks_ph = pd.get_dummies(ph_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
+        track_ip_ext  = pd.concat([ip_batch,self.track_extended], axis = 0, sort=False)
+        track_ph_ext  = pd.concat([ph_batch,self.track_extended], axis = 0, sort=False)
+        track_ip_ext = pd.get_dummies(track_ip_ext, prefix=['key', 'mode'], columns=['key', 'mode'])
+        track_ph_ext = pd.get_dummies(track_ph_ext, prefix=['key', 'mode'], columns=['key', 'mode'])
+
+        n = self.track_extended.shape[0]
+        tracks_ip = track_ip_ext[:-n].drop(['key_-1','key_11','mode_minor','session_id'],axis=1)
+        tracks_ph = track_ph_ext[:-n].drop(['key_-1','key_11','mode_minor','session_id'],axis=1)
+
+        # tracks_ip = pd.get_dummies(ip_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
+        # tracks_ph = pd.get_dummies(ph_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
 
         # Normalize columns
         tmp_ip_normal = (tracks_ip - self.t_min) / (self.t_max - self.t_min)
@@ -395,11 +470,20 @@ class Datagen:
         #Modify date and perform one-hot-encoding
         session_single['date'] = pd.to_datetime(session_single['date'],
             errors='coerce').apply(lambda x: x.dayofyear)
-        session_single = pd.get_dummies(session_single,
-            prefix=['shuffle', 'premium', 'context'],
+
+        session_ext  = pd.concat([session_single,self.session_extended], axis = 0)
+        session_ext = pd.get_dummies(session_ext, prefix=['shuffle', 'premium', 'context'],
             columns=['hist_user_behavior_is_shuffle', 'premium','context_type'])
-        session_single = session_single.drop(['session_id','shuffle_False',
+
+        n = self.session_extended.shape[0]
+        session_single = session_ext[:-n].drop(['session_id','shuffle_False',
             'premium_False','context_user_collection'],axis=1)
+
+        # session_single = pd.get_dummies(session_single,
+        #     prefix=['shuffle', 'premium', 'context'],
+        #     columns=['hist_user_behavior_is_shuffle', 'premium','context_type'])
+        # session_single = session_single.drop(['session_id','shuffle_False',
+        #     'premium_False','context_user_collection'],axis=1)
 
         #Normalize data
         tmp3 = (session_single - self.s_min) / (self.s_max - self.s_min)
@@ -431,9 +515,9 @@ class Datagen:
 
         return
 
-    def check_existance(self,path):
+    def check_existance(self,path,verbosity=True):
         exists = os.path.isfile(path) or os.path.exists(path)
 
-        if not exists:
+        if not exists and verbosity:
             print('File not found ' + path)
         return exists
