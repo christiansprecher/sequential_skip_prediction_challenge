@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from tqdm import tqdm
 import glob
 import os
 import time
@@ -110,7 +109,7 @@ class Datagen:
         if not os.path.exists(path_output):
             os.makedirs(path_output)
 
-        all_training_files = glob.glob(path + "/log_input*.csv")
+        all_training_files = glob.glob(path + "/*.csv")
         start = time.process_time()
 
         num_files = len(all_training_files)
@@ -198,11 +197,6 @@ class Datagen:
         result = pd.concat([sessions, df_kys], axis=1)
         time_list = np.append(time_list,time.process_time())
 
-        #Save to csv file
-        output_file_path = path_output + '/'+ os.path.basename(file)
-        result.to_csv(output_file_path, index=False)
-        time_list = np.append(time_list,time.process_time())
-
         #create sessions_based_information
         #Remove unwanted information
         session_fixed = batch.drop(['session_position', 'track_id',
@@ -241,9 +235,17 @@ class Datagen:
         session_finish = pd.DataFrame(session_ids).join(tmp3)
 
         #Save to csv file
+        print("Start saving to file %s" % os.path.basename(file))
+        output_file_path = path_output + '/'+ os.path.basename(file)
+        result.to_csv(output_file_path, index=False)
+        time_list = np.append(time_list,time.process_time())
+
+        #Save to csv file
         output_file_path = path_output + '/session_'+ os.path.basename(file)
         session_finish.to_csv(output_file_path, index=False)
         time_list = np.append(time_list,time.process_time())
+
+        print("Finished saving to file %s" % os.path.basename(file))
 
         # Print times
         time_list = (time_list - start) / 60;
@@ -281,10 +283,14 @@ class Datagen:
     def load_test_batch(self,file,path_output):
         print("Loading of file %s started" % os.path.basename(file))
 
+        start = time.process_time()
+        time_list = np.asarray([])
+
         #load files
         file_ph = file.replace('input','prehistory')
         log_ip = pd.read_csv(file).rename(columns={"track_id_clean": "track_id"})
         log_ph = pd.read_csv(file_ph).rename(columns={"track_id_clean": "track_id"})
+        time_list = np.append(time_list,time.process_time())
 
         # Start with item based information
         # Merge sessions and tracks
@@ -297,6 +303,7 @@ class Datagen:
         log_ph_tmp["Order"] = np.arange(len(log_ph_tmp))
         tmp_ph = log_ph_tmp.merge(self.tracks, how='left', on="track_id").set_index("Order").iloc[np.arange(len(log_ph_tmp)), :]
         tmp_ph.reset_index(drop=True)
+        time_list = np.append(time_list,time.process_time())
 
         # Create session ids frames
         ip_sessions = log_ip["session_id"]
@@ -314,6 +321,7 @@ class Datagen:
             'hour_of_day', 'date', 'premium', 'context_type',
             'hist_user_behavior_reason_start', 'hist_user_behavior_reason_end',
             'track_id', 'session_id'], axis=1)
+        time_list = np.append(time_list,time.process_time())
 
         # Get one-hot encoding
         tracks_ip = pd.get_dummies(ip_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
@@ -324,6 +332,7 @@ class Datagen:
         tmp_ph_normal = (tracks_ph - self.t_min) / (self.t_max - self.t_min)
         tracks_ip = pd.DataFrame(ip_sessions).join(tmp_ip_normal)
         tracks_ph = pd.DataFrame(ph_sessions).join(tmp_ph_normal)
+        time_list = np.append(time_list,time.process_time())
 
         # Merge input and prehistory and fill up sessions
         track_ip_grouped = tracks_ip.groupby("session_id")
@@ -342,6 +351,7 @@ class Datagen:
             L_ph = len(ph)
             sessions.iloc[ix*20:(ix*20+L_ph), :] = ph.values
             sessions.iloc[(ix*20+L_ph):(ix*20+L_ph+L_ip), :] = ip.values
+        time_list = np.append(time_list,time.process_time())
 
         # Create skip information and output vector
         k_y = tmp_ph[["session_id", "skip_2"]]
@@ -358,11 +368,7 @@ class Datagen:
         kys = np.reshape(kys,(kys_shape[0]*kys_shape[1],kys_shape[2]))
         df_kys = pd.DataFrame(data=kys, columns=["y1"], dtype="int")
         result = pd.concat([sessions, df_kys], axis=1)
-
-        # save to csv file
-        output_file_path = path_output + '/' + os.path.basename(file)
-        output_file_path = output_file_path.replace('input_','')
-        result.to_csv(output_file_path, index=False)
+        time_list = np.append(time_list,time.process_time())
 
         #create sessions_based_information
         #Remove unwanted information
@@ -399,10 +405,29 @@ class Datagen:
         tmp3 = (session_single - self.s_min) / (self.s_max - self.s_min)
         session_finish = pd.DataFrame(session_ids).join(tmp3)
 
+        # save to csv file
+        print("Start saving to file %s" % os.path.basename(file))
+        output_file_path = path_output + '/' + os.path.basename(file)
+        output_file_path = output_file_path.replace('input_','')
+        result.to_csv(output_file_path, index=False)
+        time_list = np.append(time_list,time.process_time())
+
         #Save to csv file
         output_file_path = path_output + '/session_'+ os.path.basename(file)
         output_file_path = output_file_path.replace('input_','')
         session_finish.to_csv(output_file_path, index=False)
+        time_list = np.append(time_list,time.process_time())
+        print("Finished saving to file %s" % os.path.basename(file))
+
+        # Print times
+        time_list = (time_list - start) / 60;
+        if self.verbosity:
+            # print(result.head())
+            print("Loading of file %s finished" % os.path.basename(file))
+            print("Time [in minutes] used for loading batch: %4.2f, Merging tracks: %4.2f" % (time_list[0],time_list[1]),
+            "Drop unwanted columns: %4.2f, Normalize data: %4.2f," % (time_list[2],time_list[3]),
+            "Fill up sessions: %4.2f, Create skip information: %4.2f," % (time_list[4],time_list[5]),
+            "Save to file: %4.2f, Create Session fixed information: %4.2f" % (time_list[6],time_list[7]))
 
         return
 
