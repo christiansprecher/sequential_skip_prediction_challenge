@@ -8,11 +8,12 @@ import multiprocessing
 
 class Datagen:
 
-    def __init__(self,folder_path,cores, overwrite=True, verbosity=True):
+    def __init__(self,folder_path,cores, overwrite=True, reverse = False, verbosity=True):
         self.folder_path = folder_path
         self.verbosity = int(verbosity)
         self.overwrite = int(overwrite)
         self.cores = int(cores)
+        self.reverse = int(reverse)
 
         if self.check_existance(folder_path):
             self.load_tracks()
@@ -161,7 +162,13 @@ class Datagen:
         print("Number of training files found: %u" % num_files)
 
         num_cores = min(multiprocessing.cpu_count(),8, self.cores)
-        Parallel(n_jobs=num_cores)(delayed(self.load_training_batch)(file,path_output) for file in all_training_files)
+
+        if(self.reverse):
+            Parallel(n_jobs=num_cores)(delayed(self.load_training_batch)(file,path_output)
+                for file in reversed(all_training_files))
+        else:
+            Parallel(n_jobs=num_cores)(delayed(self.load_training_batch)(file,path_output)
+                for file in all_training_files)
 
         end = time.process_time()
         print("Time used for processing all training files: %4.2f" % ((end-start)/60))
@@ -334,7 +341,13 @@ class Datagen:
         print("Number of test files found: %u" % num_files)
 
         num_cores = min(multiprocessing.cpu_count(),8,self.cores)
-        Parallel(n_jobs=num_cores)(delayed(self.load_test_batch)(file,path_output) for file in all_test_files)
+
+        if(self.reverse):
+            Parallel(n_jobs=num_cores)(delayed(self.load_test_batch)(file,path_output)
+                for file in reversed(all_test_files))
+        else:
+            Parallel(n_jobs=num_cores)(delayed(self.load_test_batch)(file,path_output)
+                for file in all_test_files)
 
         end = time.process_time()
         print("Time used for processing all test files: %4.2f minutes" % ((end-start)/60))
