@@ -26,12 +26,17 @@ class Model:
         pass
 
     def save_model(self):
-        path = 'backup/' + self.model_name + '.h5'
+        path = 'models/' + self.model_name + '.h5'
         keras.models.save_model(self.model,path,overwrite=True,include_optimizer=True)
 
     def load_model(self):
-        path = 'backup/' + self.model_name + '.h5'
+        path = 'models/' + self.model_name + '.h5'
         self.model = keras.models.load_model(path)
+
+    def plot_model(self):
+        path = 'models/'+ self.model_name + '.png'
+        plot_model(self.model, to_file=path)
+
 
 
 
