@@ -209,6 +209,7 @@ class Datagen:
            'track_id'], axis=1)
         time_list = np.append(time_list,time.process_time())
 
+        del batch_tmp
         # Convert and normalize data
             #Do one-hot-encoding for mode and key
             #Add first extended state to feature all add_all_categories
@@ -219,6 +220,7 @@ class Datagen:
         n = self.track_extended.shape[0]
         track = track_ext[:-n].drop(['key_-1','key_11','mode_minor'],axis=1)
 
+        del track_ext
             #Normalize data
         tmp2 = track.drop(['session_id'],axis=1)
         tmp2_normal = (tmp2 - self.t_min) / (self.t_max - self.t_min)
@@ -234,12 +236,16 @@ class Datagen:
         sessions = pd.DataFrame(data)
         sessions.columns = track.columns
 
+        del track, data
+
         for ix, item in session_ids.items():
             chk = track_grouped.get_group(item)
             L_s = len(chk)
             sessions.iloc[ix*20:(ix*20+L_s), :] = chk.values
             # sessions.iloc[ix*20+L_s:(ix+1)*20,"session_id"] = chk[0,"session_id"]
         time_list = np.append(time_list,time.process_time())
+
+        del track_grouped
 
         # Create skip information and output vector
         k_y = tmp[["session_id", "skip_2"]]
@@ -261,6 +267,8 @@ class Datagen:
         result = pd.concat([sessions, df_kys], axis=1)
         time_list = np.append(time_list,time.process_time())
 
+        del kys, k_y, ky_grouped, df_kys
+
         #create sessions_based_information
         #Remove unwanted information
         session_fixed = batch.drop(['session_position', 'track_id',
@@ -272,11 +280,14 @@ class Datagen:
         session_fixed_ids = session_fixed["session_id"].drop_duplicates().reset_index(drop=True)
         session_grouped = session_fixed.groupby("session_id")
 
+        del batch
         #Create empty variable to store values in
         n_rows = len(session_fixed_ids);
         data = np.transpose(np.array([np.empty(n_rows, dtype=dt) for dt in session_fixed.dtypes]))
         session_single = pd.DataFrame(data)
         session_single.columns = session_fixed.columns
+
+        del session_fixed, data
 
         #Fill in session information with information of last element of first half
         for ix, item in session_fixed_ids.items():
@@ -284,6 +295,8 @@ class Datagen:
             L_s = len(chk)
             L_sh = int(L_s/2) - 1
             session_single.iloc[ix] = chk.iloc[L_sh]
+
+        del session_fixed_ids, session_grouped
 
         #Modify date and perform one-hot-encoding
         session_single['date'] = pd.to_datetime(session_single['date'],
@@ -297,9 +310,13 @@ class Datagen:
         session_single = session_ext[:-n].drop(['session_id','shuffle_False',
             'premium_False','context_user_collection'],axis=1)
 
+        del session_ext
+
         #Normalize data
         tmp3 = (session_single - self.s_min) / (self.s_max - self.s_min)
         session_finish = pd.DataFrame(session_ids).join(tmp3)
+
+        del tmp3
 
         #Save to csv file
         print("Start saving to file %s" % os.path.basename(file))
@@ -389,6 +406,8 @@ class Datagen:
         ip_sessions = log_ip["session_id"]
         ph_sessions = log_ph["session_id"]
 
+        del log_ip, log_ip_tmp, log_ph_tmp
+
         # Drop unwanted data
         ip_batch = tmp_ip.drop(['session_position', 'session_length',
             'track_id','session_id'], axis=1)
@@ -403,6 +422,8 @@ class Datagen:
             'track_id', 'session_id'], axis=1)
         time_list = np.append(time_list,time.process_time())
 
+        del tmp_ip
+
         # Get one-hot encoding
         track_ip_ext  = pd.concat([ip_batch,self.track_extended], axis = 0, sort=False)
         track_ph_ext  = pd.concat([ph_batch,self.track_extended], axis = 0, sort=False)
@@ -413,8 +434,7 @@ class Datagen:
         tracks_ip = track_ip_ext[:-n].drop(['key_-1','key_11','mode_minor','session_id'],axis=1)
         tracks_ph = track_ph_ext[:-n].drop(['key_-1','key_11','mode_minor','session_id'],axis=1)
 
-        # tracks_ip = pd.get_dummies(ip_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
-        # tracks_ph = pd.get_dummies(ph_batch, prefix=['key', 'mode'], columns=['key', 'mode']).drop(['key_11','mode_minor'],axis=1)
+        del ip_batch, ph_batch, track_ip_ext, track_ph_ext
 
         # Normalize columns
         tmp_ip_normal = (tracks_ip - self.t_min) / (self.t_max - self.t_min)
@@ -422,6 +442,8 @@ class Datagen:
         tracks_ip = pd.DataFrame(ip_sessions).join(tmp_ip_normal)
         tracks_ph = pd.DataFrame(ph_sessions).join(tmp_ph_normal)
         time_list = np.append(time_list,time.process_time())
+
+        del tmp_ip_normal, tmp_ph_normal
 
         # Merge input and prehistory and fill up sessions
         track_ip_grouped = tracks_ip.groupby("session_id")
@@ -432,6 +454,8 @@ class Datagen:
         data = np.transpose(np.array([np.zeros(n_rows, dtype=dt) for dt in tracks_ip.dtypes]))
         sessions = pd.DataFrame(data)
         sessions.columns = tracks_ip.columns
+
+        del tracks_ip, data
 
         for ix, item in session_ids.items():
             ip = track_ip_grouped.get_group(item)
@@ -459,6 +483,8 @@ class Datagen:
         result = pd.concat([sessions, df_kys], axis=1)
         time_list = np.append(time_list,time.process_time())
 
+        del k_y, ky_grouped, kys, tmp_ph
+
         #create sessions_based_information
         #Remove unwanted information
         session_fixed = log_ph.drop(['session_position', 'track_id',
@@ -470,11 +496,15 @@ class Datagen:
         session_fixed_ids = session_fixed["session_id"].drop_duplicates().reset_index(drop=True)
         session_grouped = session_fixed.groupby("session_id")
 
+        del log_ph
+
         #Create empty variable to store values in
         n_rows = len(session_fixed_ids);
         data = np.transpose(np.array([np.empty(n_rows, dtype=dt) for dt in session_fixed.dtypes]))
         session_single = pd.DataFrame(data)
         session_single.columns = session_fixed.columns
+
+        del session_fixed, data
 
         #Fill in session information with information of last element of first half
         for ix, item in session_fixed_ids.items():
@@ -493,6 +523,8 @@ class Datagen:
         session_single = session_ext[:-n].drop(['session_id','shuffle_False',
             'premium_False','context_user_collection'],axis=1)
 
+        del session_ext
+
         # session_single = pd.get_dummies(session_single,
         #     prefix=['shuffle', 'premium', 'context'],
         #     columns=['hist_user_behavior_is_shuffle', 'premium','context_type'])
@@ -502,6 +534,8 @@ class Datagen:
         #Normalize data
         tmp3 = (session_single - self.s_min) / (self.s_max - self.s_min)
         session_finish = pd.DataFrame(session_ids).join(tmp3)
+
+        del tmp3
 
         # save to csv file
         print("Start saving to file %s" % os.path.basename(file))
