@@ -8,10 +8,11 @@ import multiprocessing
 
 class Datagen:
 
-    def __init__(self,folder_path,overwrite=True, verbosity=True):
+    def __init__(self,folder_path,cores, overwrite=True, verbosity=True):
         self.folder_path = folder_path
-        self.verbosity = verbosity
-        self.overwrite = overwrite
+        self.verbosity = int(verbosity)
+        self.overwrite = int(overwrite)
+        self.cores = int(cores)
 
         if self.check_existance(folder_path):
             self.load_tracks()
@@ -159,7 +160,7 @@ class Datagen:
         num_files = len(all_training_files)
         print("Number of training files found: %u" % num_files)
 
-        num_cores = min(multiprocessing.cpu_count(),8)
+        num_cores = min(multiprocessing.cpu_count(),8, self.cores)
         Parallel(n_jobs=num_cores)(delayed(self.load_training_batch)(file,path_output) for file in all_training_files)
 
         end = time.process_time()
@@ -332,7 +333,7 @@ class Datagen:
         num_files = len(all_test_files)
         print("Number of test files found: %u" % num_files)
 
-        num_cores = min(multiprocessing.cpu_count(),8)
+        num_cores = min(multiprocessing.cpu_count(),8,self.cores)
         Parallel(n_jobs=num_cores)(delayed(self.load_test_batch)(file,path_output) for file in all_test_files)
 
         end = time.process_time()
