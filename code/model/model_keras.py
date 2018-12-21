@@ -3,6 +3,7 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten, Concatenate, GRU, LSTM
 from keras.layers.normalization import BatchNormalization
+from keras.optimizers import SGD, Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.regularizers import l2
 from keras.utils import plot_model
