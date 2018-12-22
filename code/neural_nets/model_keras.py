@@ -62,7 +62,7 @@ def selective_binary_accuracy(y_true, y_pred):
 callbacks = [EarlyStopping(monitor='val_loss', patience=5),
              ModelCheckpoint(filepath='model/keras_{epoch:02d}-{val_loss:.4f}.h5', monitor='val_loss', save_best_only=False)]
 
-model_full.compile(loss='selective_hinge', optimizer='Adam',metrics=['selective_binary_accuracy'])
+model_full.compile(loss=selective_hinge, optimizer='Adam',metrics=[selective_binary_accuracy])
 
 plot_model(model_sequential_rnn, to_file='model/keras_rnn.png')
 plot_model(model_sequential_dense, to_file='model/keras_dense.png')
