@@ -20,6 +20,6 @@ def selective_hinge(y_true, y_pred):
 def selective_binary_accuracy(y_true, y_pred):
     return K.mean(K.equal(y_true, K.sign(y_pred)), axis=-1)
 
-
+# Exclude nodes not to predict
 def normed_selective_binary_accuracy(y_true, y_pred):
     return K.mean(K.equal(y_true, K.sign(y_pred)), axis=-1) / K.mean(K.abs(y_true),axis=-1)

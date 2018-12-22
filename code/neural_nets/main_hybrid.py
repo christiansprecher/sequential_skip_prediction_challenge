@@ -14,8 +14,9 @@ if __name__ == '__main__':
     # Generate validation set
     s = x_rnn.shape[0]
     shuffle_indices = np.random.permutation(np.arange(s))
-    indices_train = shuffle_indices[:int(s*0.75)]
-    indices_valid = shuffle_indices[int(s*0.75):]
+    indices_train = shuffle_indices[:int(s*0.5)]
+    indices_valid = shuffle_indices[int(s*0.5):int(s*0.75)]
+    indices_test = shuffle_indices[int(s*0.75):]
 
     x_rnn_train = x_rnn[indices_train,:,:]
     x_fc_train = x_fc[indices_train,:]
@@ -24,6 +25,10 @@ if __name__ == '__main__':
     x_rnn_valid = x_rnn[indices_valid,:,:]
     x_fc_valid = x_fc[indices_valid,:]
     y_valid = y[indices_valid,:]
+
+    x_rnn_test = x_rnn[indices_test,:,:]
+    x_fc_test = x_fc[indices_test,:]
+    y_test = y[indices_test,:]
 
     del x_rnn, x_fc, y
 
@@ -50,9 +55,9 @@ if __name__ == '__main__':
     model.plot_model()
     model.print_summary()
 
-    history = model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
+    model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
         x_fc_valid, y_valid, verbosity=2)
 
-    print(history)
+    model.plot_training()
 
-    utils.plot_history(history)
+    model.evaluate(x_rnn_test, x_fc_test, y_test,verbosity=2)
