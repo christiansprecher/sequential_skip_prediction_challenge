@@ -10,7 +10,9 @@ from keras.regularizers import l2
 from keras import backend as K
 import matplotlib.pyplot as plt
 import os
+import datetime
 
+import utils
 from custom_losses_and_metrics import (selective_hinge as s_hinge,
     selective_binary_accuracy as s_binary_acc,
     normed_selective_binary_accuracy as ns_binary_acc)
@@ -18,10 +20,11 @@ from custom_losses_and_metrics import (selective_hinge as s_hinge,
 #class skeleton for models
 class Model:
 
-    def __init__(self):
-        self.model_name = 'skeleton'
+    def __init__(self, model_name = 'skeleton'):
+        self.model_name = model_name
         self.set_shape()
         self.create_folder()
+        self.set_timestamp()
 
     def set_shape(self):
         self.input_shape_tracks = (20,40,)
@@ -32,6 +35,10 @@ class Model:
         self.path = 'models/' + self.model_name + '/'
         if not os.path.exists(self.path):
             os.makedirs(self.path)
+
+    def set_timestamp(self):
+        now = datetime.datetime.now()
+        self.now = now.strftime("%Y-%m-%d_%H:%M")
 
     def build_model(self):
         pass
@@ -46,15 +53,15 @@ class Model:
         pass
 
     def save_model(self):
-        path = self.path + self.model_name + '.h5'
+        path = self.path + self.model_name + '_' + self.now + '.h5'
         keras.models.save_model(self.model,path,overwrite=True,include_optimizer=True)
 
-    def load_model(self):
-        path = self.path + self.model_name + '.h5'
+    def load_model(self, name):
+        path = self.path + name + '.h5'
         self.model = keras.models.load_model(path)
 
     def plot_model(self):
-        path = self.path + self.model_name + '_architecture.png'
+        path = self.path + self.model_name + '_' + self.now + '_architecture.png'
         keras.utils.plot_model(self.model, to_file=path)
 
     def print_summary(self):
@@ -72,7 +79,8 @@ class Model:
                 plt.ylabel('Accuracy')
                 plt.xlabel('Epoch')
                 plt.legend(['Train', 'Test'], loc='upper left')
-                plot_name = self.path + self.model_name + '_' + key[4:] + '.png'
+                plot_name = (self.path + self.model_name + '_'
+                    + self.now + '_' + key[4:] + '.png')
                 plt.savefig(plot_name, bbox_inches='tight')
                 plt.clf()
 
@@ -84,7 +92,8 @@ class Model:
         plt.ylabel('Loss')
         plt.xlabel('Epoch')
         plt.legend(['Train', 'Test'], loc='upper left')
-        plot_name = self.path + self.model_name + '_loss.png'
+        plot_name = (self.path + self.model_name + '_'
+            + self.now + '_loss.png')
         plt.savefig(plot_name, bbox_inches='tight')
 
 
@@ -95,7 +104,7 @@ class Hybrid(Model):
         self.model_name = model_name
         self.set_shape()
         self.create_folder()
-        return
+        self.set_timestamp()
 
     def build_model(self,
         rnn_layer_sizes = np.array([20, 20, 20]),
@@ -162,13 +171,13 @@ class Hybrid(Model):
                 monitor='val_loss', save_best_only=False)]
 
     def fit(self, x_train_rnn, x_train_fc, y_train, x_valid_rnn = None,
-        x_valid_fc = None, y_valid = None, verbosity = 0):
+        x_valid_fc = None, y_valid = None, epochs=50, batch_size=64, verbosity = 0):
 
         self.history = self.model.fit({'tracks_input': x_train_rnn, 'session_input': x_train_fc},
             {'output': y_train},
             validation_data=({'tracks_input': x_valid_rnn, 'session_input': x_valid_fc},
             {'output': y_valid}),
-            epochs=50, batch_size=64, callbacks = self.callbacks, verbose = verbosity)
+            epochs=epochs, batch_size=batch_size, callbacks = self.callbacks, verbose = verbosity)
 
         n_epochs = len(self.history.history['loss'])
         print('Model trained for %u epochs' % n_epochs)
@@ -183,6 +192,15 @@ class Hybrid(Model):
 
         return eval
 
-    def predict(self, x_rnn, x_fc, verbosity=0):
-        return self.model.predict({'tracks_input': x_rnn, 'session_input': x_fc},
+    def predict(self, x_rnn, x_fc, verbosity=0, write_to_file = False,
+        overwrite = True, path = None):
+        y_pred =  self.model.predict({'tracks_input': x_rnn, 'session_input': x_fc},
             verbose=verbosity)
+
+        if write_to_file:
+            session_length = x_fc[:,0] * 10 + 10
+
+            if path == None:
+                path = '../../data/submissions'
+            path = path + '/' + self.model_name + '_' + self.now + '.txt'
+            utils.save_submission(y_pred,session_length, path, overwrite = overwrite)
