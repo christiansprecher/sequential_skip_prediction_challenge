@@ -56,10 +56,10 @@ def run_local_test():
         lambda_reg_dense = lambda_reg_dense)
 
     # model.plot_model()
-    # model.print_summary()
+    model.print_summary()
 
     model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
-        x_fc_valid, y_valid, epochs=10, verbosity=2)
+        x_fc_valid, y_valid, epochs=10, verbosity=2, patience = 5)
 
     # model.plot_training()
 
@@ -118,7 +118,8 @@ def run_on_server_simple():
     model.print_summary()
 
     model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
-        x_fc_valid, y_valid, epochs=1000, batch_size = 100, verbosity=2)
+        x_fc_valid, y_valid, epochs=1000, batch_size = 100,
+        verbosity=2, patience = 10)
 
     model.plot_training()
     model.save_model()
@@ -131,7 +132,7 @@ def run_on_server_simple():
     for tracks_path in predict_logs:
         dir = os.path.dirname(tracks_path)
         file = os.path.basename(tracks_path)
-        sessions_path = dir + 'session_' + file
+        sessions_path = dir + '/session_' + file
         x_rnn, x_fc = utils.load_test_data_simple(tracks_path, sessions_path)
 
         model.predict(x_rnn_test, x_fc_test, write_to_file = True,
@@ -139,6 +140,34 @@ def run_on_server_simple():
 
     end = time.process_time()
     print("All files written, time used: %4.2f seconds" % (end-start))
+
+def predict_on_server_simple():
+
+    start = time.process_time()
+    path = '/cluster/scratch/cspreche/spotify_challenge'
+
+    test_path = path + '/test_set_preproc'
+    submission_path = path + '/submissions'
+
+    model = Hybrid()
+    model.load_model('hybrid_45_0.2835')
+
+    predict_logs = sorted(glob.glob(test_path + "/log_*.csv"))
+
+    start = time.process_time()
+
+    for tracks_path in predict_logs:
+        dir = os.path.dirname(tracks_path)
+        file = os.path.basename(tracks_path)
+        sessions_path = dir + '/session_' + file
+        x_rnn, x_fc = utils.load_test_data_simple(tracks_path, sessions_path)
+
+        model.predict(x_rnn_test, x_fc_test, write_to_file = True,
+        overwrite = False, path = submission_path)
+
+    end = time.process_time()
+    print("All files written, time used: %4.2f seconds" % (end-start))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -153,5 +182,8 @@ if __name__ == '__main__':
     elif task == '1':
         run_on_server_simple()
 
+    elif task == '2':
+        predict_on_server_simple()
+        
     else:
         print('Choose Task')

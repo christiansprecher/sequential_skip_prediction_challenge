@@ -1,6 +1,6 @@
 import numpy as np
 import keras
-from keras.models import Sequential, Model as K_Model
+from keras.models import Sequential, Model as K_Model, save_model, load_model
 from keras.layers import (Input, Dense, Dropout, Flatten, Concatenate, Reshape,
     GRU, LSTM, concatenate, multiply)
 from keras.optimizers import SGD, Adam
@@ -8,6 +8,9 @@ from keras.layers.normalization import BatchNormalization
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.regularizers import l2
 from keras import backend as K
+from keras.utils import plot_model
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import datetime
@@ -54,18 +57,18 @@ class Model:
 
     def save_model(self):
         path = self.path + self.model_name + '_' + self.now + '.h5'
-        keras.models.save_model(self.model,path,overwrite=True,include_optimizer=True)
+        save_model(self.model,path,overwrite=True,include_optimizer=True)
 
     def load_model(self, name):
         path = self.path + name + '.h5'
-        self.model = keras.models.load_model(path)
+        self.model = load_model(path)
 
     def plot_model(self):
         path = self.path + self.model_name + '_' + self.now + '_architecture.png'
-        keras.utils.plot_model(self.model, to_file=path)
+        plot_model(self.model, to_file=path)
 
     def print_summary(self):
-        keras.utils.print_summary(self.model)
+        print(self.model.summary())
 
     def plot_training(self):
         #Extract the metrics from the history
@@ -165,13 +168,14 @@ class Hybrid(Model):
         self.model.compile(optimizer='Adam', loss=s_hinge,
             metrics=[ns_binary_acc])
 
+    def fit(self, x_train_rnn, x_train_fc, y_train, x_valid_rnn = None,
+        x_valid_fc = None, y_valid = None, epochs=50, batch_size=64,
+        patience = 5, verbosity = 0):
+
         # define callbacks
-        self.callbacks = [EarlyStopping(monitor='val_loss', patience=5),
+        self.callbacks = [EarlyStopping(monitor='val_loss', patience=patience),
              ModelCheckpoint(filepath=self.path + self.model_name + '_{epoch:02d}_{val_loss:.4f}.h5',
                 monitor='val_loss', save_best_only=False)]
-
-    def fit(self, x_train_rnn, x_train_fc, y_train, x_valid_rnn = None,
-        x_valid_fc = None, y_valid = None, epochs=50, batch_size=64, verbosity = 0):
 
         self.history = self.model.fit({'tracks_input': x_train_rnn, 'session_input': x_train_fc},
             {'output': y_train},
