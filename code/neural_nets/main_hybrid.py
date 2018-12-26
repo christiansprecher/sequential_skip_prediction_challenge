@@ -61,11 +61,10 @@ def run_local_test():
     model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
         x_fc_valid, y_valid, epochs=10, verbosity=2, patience = 5)
 
-    # model.plot_training()
+    model.plot_training()
 
-    # model.evaluate(x_rnn_test, x_fc_test, y_test, verbosity=2)
-
-    model.predict(x_rnn_test, x_fc_test, write_to_file = True)
+    model.evaluate(x_rnn_test, x_fc_test, y_test, verbosity=2)
+    # model.predict(x_rnn_test, x_fc_test, write_to_file = True)
 
 
 def run_on_server_simple():
