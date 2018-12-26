@@ -67,6 +67,6 @@ def save_submission(y_pred, session_lengths, path, overwrite = False):
         for i in range(y_pred_01.shape[0]):
             ls = session_lengths[i]
             a = y_pred_01[i,int(ls/2):int(ls)]
-            line = ' '.join(map(str,a))
+            line = ''.join(map(str,a))
             f.write(line + '\n')
     print('Written to file: %s' % path)

@@ -18,7 +18,8 @@ import datetime
 import utils
 from custom_losses_and_metrics import (selective_hinge as s_hinge,
     selective_binary_accuracy as s_binary_acc,
-    normed_selective_binary_accuracy as ns_binary_acc)
+    normed_selective_binary_accuracy as ns_binary_acc,
+    cumulative_binary_accuracy as c_binary_acc)
 
 #class skeleton for models
 class Model:
@@ -61,7 +62,9 @@ class Model:
 
     def load_model(self, name):
         path = self.path + name + '.h5'
-        self.model = load_model(path)
+        self.model = load_model(path,
+            custom_objects={'selective_hinge': s_hinge,
+            'normed_selective_binary_accuracy' : ns_binary_acc})
 
     def plot_model(self):
         path = self.path + self.model_name + '_' + self.now + '_architecture.png'

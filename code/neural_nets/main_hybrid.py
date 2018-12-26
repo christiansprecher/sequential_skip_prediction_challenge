@@ -135,8 +135,8 @@ def run_on_server_simple():
         sessions_path = dir + '/session_' + file
         x_rnn, x_fc = utils.load_test_data_simple(tracks_path, sessions_path)
 
-        model.predict(x_rnn_test, x_fc_test, write_to_file = True,
-        overwrite = False, path = submission_path)
+        model.predict(x_rnn, x_fc, write_to_file = True,
+        overwrite = False, path = submission_path, verbosity = 2)
 
     end = time.process_time()
     print("All files written, time used: %4.2f seconds" % (end-start))
@@ -162,8 +162,8 @@ def predict_on_server_simple():
         sessions_path = dir + '/session_' + file
         x_rnn, x_fc = utils.load_test_data_simple(tracks_path, sessions_path)
 
-        model.predict(x_rnn_test, x_fc_test, write_to_file = True,
-        overwrite = False, path = submission_path)
+        model.predict(x_rnn, x_fc, write_to_file = True,
+        overwrite = False, path = submission_path, verbosity = 2)
 
     end = time.process_time()
     print("All files written, time used: %4.2f seconds" % (end-start))
@@ -184,6 +184,6 @@ if __name__ == '__main__':
 
     elif task == '2':
         predict_on_server_simple()
-        
+
     else:
         print('Choose Task')
