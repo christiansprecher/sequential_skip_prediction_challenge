@@ -8,8 +8,32 @@ import numpy as np
 # Selective Hinge Loss and Binary Accuracy
 # y_pred should be -1 if not skipped, 0 if does not have to be predicted, 1 if skipped
 def selective_hinge(y_true, y_pred):
-    return K.mean(K.maximum(1. - y_true * y_pred, 0.) * K.pow(y_true,2), axis=-1)
+    return K.mean(K.maximum(1. - y_true * y_pred, 0.) * K.abs(y_true,2), axis=-1)
 
+# Use selective hinge, but apply with same weight as average mean accuracy
+def mean_hinge_accuracy(y_true, y_pred):
+    ones = K.ones_like(y_true,'float32')
+    # dim = K.int_shape(ones)[1]
+    dim = 20
+
+    y_hinge = K.maximum(1. - y_true * y_pred, 0.)
+    y_score_pos = K.abs(y_true)
+    y_score_neg = ones - K.abs(y_true)
+
+    num_predictions = K.expand_dims(K.sum(y_score_pos, axis = 1), axis = 1)
+    num_predictions_rep = K.repeat_elements(num_predictions, rep = dim, axis = 1)
+
+    predict_start = K.cast( K.expand_dims(K.argmax(y_score_pos, axis = 1),
+        axis = 1), 'float32')
+    predict_start_rep = K.repeat_elements(predict_start, rep = dim, axis = 1)
+
+    cumsum = K.cumsum(ones,axis=1)
+    weights = cumsum - predict_start_rep + y_score_neg * dim
+
+    y_cumsum = K.cumsum(y_hinge,axis=1)
+    y_clear = y_cumsum * y_score_pos
+    y_normed = (y_clear / weights) / num_predictions_rep
+    return K.sum(y_normed,axis=1)
 
 
 ################### CUSTOM METRICS ###########################################

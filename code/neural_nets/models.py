@@ -14,9 +14,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import datetime
+import glob
+from random import shuffle
 
 import utils
 from custom_losses_and_metrics import (selective_hinge as s_hinge,
+    mean_hinge_accuracy as m_hinge_acc,
     selective_binary_accuracy as s_binary_acc,
     normed_selective_binary_accuracy as ns_binary_acc,
     average_mean_accuracy as avg_mean_acc,
@@ -48,13 +51,63 @@ class Model:
     def build_model(self):
         pass
 
+    def generate_train_data(self, path, split = 0.2, validation = False):
+
+        tracks_logs = sorted(glob.glob(path + "/training_set_preproc/log_*.csv"))
+        n = len(tracks_logs)
+
+        tracks_train = tracks_logs[int(n*split):]
+        if validation:
+            tracks_train = tracks_logs[:int(n*split)]
+
+        batch_size = 64
+        n = len(tracks_train)
+        idx = 0
+
+        while True:
+            track = tracks_train[idx]
+            session = os.path.dirname(track) + '/session_' + os.path.basename(track)
+
+            x_rnn, x_fc, y = utils.load_training_data_simple(track, session)
+
+            random_idx = np.random.randint(x_rnn.shape[0], size=batch_size)
+
+            batch_x_rnn = x_rnn[random_idx,:,:]
+            batch_x_fc = x_fc[random_idx,:]
+            batch_y = y[random_idx,:]
+
+            idx = (idx + 1 ) % n
+            yield ({'tracks_input': batch_x_rnn, 'session_input': batch_x_fc},
+                {'output': batch_y})
+
+    def generate_test_data(self, path):
+
+        tracks_logs = sorted(glob.glob(path + "/test_set_preproc/log_*.csv"))
+        n = len(tracks_logs)
+        idx = 0
+
+        while True:
+            track = tracks_logs[idx]
+            session = os.path.dirname(track) + '/session_' + os.path.basename(track)
+
+            x_rnn, x_fc = utils.load_test_data_simple(track, session)
+
+            idx = (idx + 1 ) % n
+            yield ({'tracks_input': x_rnn, 'session_input': x_fc})
+
     def fit(self):
+        pass
+
+    def fit_generator(self):
         pass
 
     def evaluate(self):
         pass
 
     def predict(self):
+        pass
+
+    def predict_generator(self):
         pass
 
     def save_model(self):
@@ -65,6 +118,7 @@ class Model:
         path = self.path + name + '.h5'
         self.model = load_model(path,
             custom_objects={'selective_hinge': s_hinge,
+            'mean_hinge_accuracy' : m_hinge_acc,
             'normed_selective_binary_accuracy' : ns_binary_acc,
             'average_mean_accuracy' : avg_mean_acc,
             'first_prediction_accuracy' : fp_acc})
@@ -171,7 +225,7 @@ class Hybrid(Model):
 
         # create model and compile it
         self.model = K_Model(inputs=[tracks_input, session_input], outputs=[output])
-        self.model.compile(optimizer='Adam', loss=s_hinge,
+        self.model.compile(optimizer='Adam', loss=m_hinge_acc,
             metrics=[ns_binary_acc, avg_mean_acc, fp_acc])
 
     def fit(self, x_train_rnn, x_train_fc, y_train, x_valid_rnn = None,
@@ -188,6 +242,24 @@ class Hybrid(Model):
             validation_data=({'tracks_input': x_valid_rnn, 'session_input': x_valid_fc},
             {'output': y_valid}),
             epochs=epochs, batch_size=batch_size, callbacks = self.callbacks, verbose = verbosity)
+
+        n_epochs = len(self.history.history['loss'])
+        print('Model trained for %u epochs' % n_epochs)
+
+        return self.history
+
+    def fit_generator(self, path, epochs=50, batch_size=64, split = 0.2, patience = 5, verbosity = 0):
+
+        # define callbacks
+        self.callbacks = [EarlyStopping(monitor='val_loss', patience=patience),
+             ModelCheckpoint(filepath=self.path + self.model_name + '_{epoch:02d}_{val_loss:.4f}.h5',
+                monitor='val_loss', save_best_only=False)]
+
+        self.history = self.model.fit_generator(self.generate_train_data(path),
+            validation_data = self.generate_train_data(path, validation = True),
+            epochs=epochs, callbacks = self.callbacks,
+            verbose = verbosity, steps_per_epoch = 16000,
+            validation_steps = 4000 )
 
         n_epochs = len(self.history.history['loss'])
         print('Model trained for %u epochs' % n_epochs)
