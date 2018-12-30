@@ -8,7 +8,7 @@ import numpy as np
 # Selective Hinge Loss and Binary Accuracy
 # y_pred should be -1 if not skipped, 0 if does not have to be predicted, 1 if skipped
 def selective_hinge(y_true, y_pred):
-    return K.mean(K.maximum(1. - y_true * y_pred, 0.) * K.abs(y_true,2), axis=-1)
+    return K.mean(K.maximum(1. - y_true * y_pred, 0.) * K.abs(y_true), axis=-1)
 
 # Use selective hinge, but apply with same weight as average mean accuracy
 def mean_hinge_accuracy(y_true, y_pred):

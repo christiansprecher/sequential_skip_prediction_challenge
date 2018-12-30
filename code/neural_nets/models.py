@@ -15,9 +15,11 @@ import matplotlib.pyplot as plt
 import os
 import datetime
 import glob
+import random
 from random import shuffle
 
 import utils
+from utils import Training_Data_Loader
 from custom_losses_and_metrics import (selective_hinge as s_hinge,
     mean_hinge_accuracy as m_hinge_acc,
     selective_binary_accuracy as s_binary_acc,
@@ -51,34 +53,55 @@ class Model:
     def build_model(self):
         pass
 
-    def generate_train_data(self, path, split = 0.2, validation = False):
+    def generate_train_data(self, path, validation_nr = 0, batch_size = 64,
+            iterations_per_file = 10):
 
         tracks_logs = sorted(glob.glob(path + "/training_set_preproc/log_*.csv"))
+
+        del tracks_logs[validation_nr]
+        shuffle(tracks_logs)
+
         n = len(tracks_logs)
-
-        tracks_train = tracks_logs[int(n*split):]
-        if validation:
-            tracks_train = tracks_logs[:int(n*split)]
-
-        batch_size = 64
-        n = len(tracks_train)
         idx = 0
 
         while True:
-            track = tracks_train[idx]
-            session = os.path.dirname(track) + '/session_' + os.path.basename(track)
+            track = tracks_logs[idx]
 
-            x_rnn, x_fc, y = utils.load_training_data_simple(track, session)
+            loader = Training_Data_Loader(track, batch_size)
 
-            random_idx = np.random.randint(x_rnn.shape[0], size=batch_size)
-
-            batch_x_rnn = x_rnn[random_idx,:,:]
-            batch_x_fc = x_fc[random_idx,:]
-            batch_y = y[random_idx,:]
-
+            random_idx = random.sample(range(loader.n_slices), iterations_per_file)
             idx = (idx + 1 ) % n
-            yield ({'tracks_input': batch_x_rnn, 'session_input': batch_x_fc},
+
+            for k in range(len(random_idx)):
+
+                x_rnn, x_fc, y = loader.get_data(random_idx[k])
+
+                yield ({'tracks_input': x_rnn, 'session_input': x_fc},
+                {'output': y})
+
+    def generate_valid_data(self, path, validation_nr = 0, batch_size = 64):
+
+        tracks_logs = sorted(glob.glob(path + "/training_set_preproc/log_*.csv"))
+
+        track = tracks_logs[validation_nr]
+        session = os.path.dirname(track) + '/session_' + os.path.basename(track)
+
+        x_rnn, x_fc, y = utils.load_training_data_simple(track, session)
+
+        n_slices = int(x_rnn.shape[0] / batch_size)
+        random_idx = np.random.randint(x_rnn.shape[0], size=x_rnn.shape[0])
+
+        while True:
+            for k in range(n_slices):
+                random_idx_slices = random_idx[k*batch_size:(k+1)*batch_size]
+
+                batch_x_rnn = x_rnn[random_idx_slices,:,:]
+                batch_x_fc = x_fc[random_idx_slices,:]
+                batch_y = y[random_idx_slices,:]
+
+                yield ({'tracks_input': batch_x_rnn, 'session_input': batch_x_fc},
                 {'output': batch_y})
+
 
     def generate_test_data(self, path):
 
@@ -225,6 +248,10 @@ class Hybrid(Model):
 
         # create model and compile it
         self.model = K_Model(inputs=[tracks_input, session_input], outputs=[output])
+
+        self.compile()
+
+    def compile(self):
         self.model.compile(optimizer='Adam', loss=m_hinge_acc,
             metrics=[ns_binary_acc, avg_mean_acc, fp_acc])
 
@@ -248,18 +275,25 @@ class Hybrid(Model):
 
         return self.history
 
-    def fit_generator(self, path, epochs=50, batch_size=64, split = 0.2, patience = 5, verbosity = 0):
+    def fit_generator(self, path, epochs=50, batch_size=64, patience = 5,
+        steps_per_epoch = 500, validation_steps = 100, verbosity = 0,
+        iterations_per_file = 50):
 
         # define callbacks
         self.callbacks = [EarlyStopping(monitor='val_loss', patience=patience),
              ModelCheckpoint(filepath=self.path + self.model_name + '_{epoch:02d}_{val_loss:.4f}.h5',
                 monitor='val_loss', save_best_only=False)]
 
-        self.history = self.model.fit_generator(self.generate_train_data(path),
-            validation_data = self.generate_train_data(path, validation = True),
-            epochs=epochs, callbacks = self.callbacks,
-            verbose = verbosity, steps_per_epoch = 16000,
-            validation_steps = 4000 )
+        n_files = len(glob.glob(path + "/training_set_preproc/log_*.csv"))
+        n = random.randint(0,n_files - 1)
+
+        self.history = self.model.fit_generator(
+            self.generate_train_data(path, batch_size = batch_size,
+            validation_nr = n, iterations_per_file = iterations_per_file),
+            validation_data =
+            self.generate_valid_data(path, batch_size = batch_size, validation_nr = n),
+            epochs = epochs, callbacks = self.callbacks, verbose = verbosity,
+            steps_per_epoch = steps_per_epoch, validation_steps = validation_steps)
 
         n_epochs = len(self.history.history['loss'])
         print('Model trained for %u epochs' % n_epochs)

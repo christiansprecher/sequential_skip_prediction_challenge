@@ -213,8 +213,9 @@ def run_on_server_using_generator():
 
     model.print_summary()
 
-    model.fit_generator(path, epochs=400, batch_size = 64,
-        verbosity=2, patience = 50)
+    model.fit_generator(path, epochs=10000, batch_size = 64,
+    steps_per_epoch = 1000, validation_steps = 100, verbosity = 2, patience = 50,
+    iterations_per_file = 50)
 
     model.plot_training()
     model.save_model()
@@ -227,11 +228,11 @@ def run_on_server_using_generator():
 def run_local_using_generator():
 
     start = time.process_time()
-    path = '/cluster/scratch/cspreche/spotify_challenge'
+    path = '/mnt/Storage/Documents/git/spotify_challenge/data'
 
-    rnn_layer_sizes = np.array([128, 64, 32])
+    rnn_layer_sizes = np.array([32, 32, 32])
     dense_layer_parallel_sizes = np.array([32, 32])
-    dense_layer_sequential_sizes = np.array([64, 32, 1])
+    dense_layer_sequential_sizes = np.array([32, 32, 1])
     dropout_prob_rnn = 0.3
     dropout_prob_dense = 0.3
     lambda_reg_dense = 0.001
@@ -247,8 +248,9 @@ def run_local_using_generator():
 
     model.print_summary()
 
-    model.fit_generator(path, epochs=400, batch_size = 64,
-        verbosity=2, patience = 50)
+    model.fit_generator(path, epochs=20, batch_size = 64,
+    steps_per_epoch = 50, validation_steps = 10, verbosity=2, patience = 50,
+    iterations_per_file = 5)
 
     model.plot_training()
     model.save_model()
