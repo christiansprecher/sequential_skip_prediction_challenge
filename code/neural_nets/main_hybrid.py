@@ -6,6 +6,7 @@ import argparse
 import glob
 import time
 from tensorflow.python.client import device_lib
+import datetime
 
 from models import Hybrid, Single_RNN_Full
 import utils
@@ -273,10 +274,10 @@ def run_local_using_generator():
 
 def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
         x_fc_valid, y_valid, x_rnn_test, x_fc_test, y_test,
-        batch_size = 64, epochs = 50):
+        path, batch_size = 64, epochs = 50):
 
-    rnn_layer_sizes = np.array([32])
-    dense_layer_parallel_sizes = np.array([32])
+    rnn_layer_sizes = np.array([32, 16])
+    dense_layer_parallel_sizes = np.array([16, 16])
     dense_layer_sequential_sizes = np.array([16, 1])
     dropout_prob_rnn = 0.1
     dropout_prob_dense = 0.1
@@ -286,24 +287,42 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
     lr_range = [0.1, 0.01, 0.001, 0.0001]
     optimizer_range = ['SGD', 'Adam']
     loss_range = ['s_hinge','m_hinge_acc']
-    merge_range = ['multiply', 'add', 'concatenate', 'maximum']
+    merge_range = ['multiply', 'add', 'concatenate', 'maximum', 'None']
+
+    model_nr = ( len(lr_range) * len(optimizer_range) * len(loss_range)
+        * (len(merge_range) + 1))
+    model_idx = 0
 
     for lr in lr_range:
         for optimizer in optimizer_range:
             for loss in loss_range:
                 for merge in merge_range:
 
-                    model = Hybrid(model_name = 'hybrid_' + merge)
+                    model = []
+                    model_idx = model_idx + 1
+                    print('Model %u out of %u' % (model_idx,model_nr))
 
-                    model.build_model(
-                        rnn_layer_sizes = rnn_layer_sizes,
-                        dense_layer_parallel_sizes = dense_layer_parallel_sizes,
-                        dense_layer_sequential_sizes = dense_layer_sequential_sizes,
-                        dropout_prob_rnn = dropout_prob_rnn,
-                        dropout_prob_dense = dropout_prob_dense,
-                        lambda_reg_dense = lambda_reg_dense,
-                        lambda_reg_rnn = lambda_reg_rnn,
-                        merge = merge)
+                    if merge == 'None':
+                        model = Single_RNN_Full()
+                        model.build_model(
+                            rnn_layer_sizes = rnn_layer_sizes,
+                            dense_layer_sequential_sizes = dense_layer_sequential_sizes,
+                            dropout_prob_rnn = dropout_prob_rnn,
+                            dropout_prob_dense = dropout_prob_dense,
+                            lambda_reg_dense = lambda_reg_dense,
+                            lambda_reg_rnn = lambda_reg_rnn)
+
+                    else:
+                        model = Hybrid(model_name = 'hybrid_' + merge)
+                        model.build_model(
+                            rnn_layer_sizes = rnn_layer_sizes,
+                            dense_layer_parallel_sizes = dense_layer_parallel_sizes,
+                            dense_layer_sequential_sizes = dense_layer_sequential_sizes,
+                            dropout_prob_rnn = dropout_prob_rnn,
+                            dropout_prob_dense = dropout_prob_dense,
+                            lambda_reg_dense = lambda_reg_dense,
+                            lambda_reg_rnn = lambda_reg_rnn,
+                            merge = merge)
 
                     model.compile(optimizer = optimizer, loss = loss, lr = lr)
 
@@ -319,31 +338,18 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
                         ' opt = %s,' % optimizer,
                         ' lr = %4.2f' % lr)
 
-                    model.evaluate(x_rnn_test, x_fc_test, y_test, verbosity=2)
+                    eval = model.evaluate(x_rnn_test, x_fc_test, y_test, verbosity=2)
 
-                model = Single_RNN_Full()
-                model.build_model(
-                    rnn_layer_sizes = rnn_layer_sizes,
-                    dense_layer_sequential_sizes = dense_layer_sequential_sizes,
-                    dropout_prob_rnn = dropout_prob_rnn,
-                    dropout_prob_dense = dropout_prob_dense,
-                    lambda_reg_dense = lambda_reg_dense,
-                    lambda_reg_rnn = lambda_reg_rnn)
+                    with open(path, 'a') as f:
+                        f.write('Model: %s,' % model.model_name)
+                        f.write(' with loss = %s,' % loss)
+                        f.write(' opt = %s,' % optimizer)
+                        f.write(' lr = %.4f: ' % lr)
 
-                model.compile(optimizer = optimizer, loss = loss, lr = lr)
-
-                model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
-                    x_fc_valid, y_valid, epochs=50, batch_size = 64,
-                    verbosity=0, patience = 10)
-                model.plot_training()
-                model.save_model()
-
-                print('Model: %s,' % model.model_name,
-                    ' with loss = %s,' % loss,
-                    ' opt = %s,' % optimizer,
-                    ' lr = %4.2f' % lr)
-
-                model.evaluate(x_rnn_test, x_fc_test, y_test, verbosity=2)
+                        f.write("%s: %.4f, " % (model.model.metrics_names[0], (eval[0])))
+                        for i in range(1, len(eval)):
+                            f.write("%s: %.2f%%, " % (model.model.metrics_names[i], (eval[i]*100)))
+                        f.write('\n')
 
 
 def run_on_server_grid_search():
@@ -357,13 +363,16 @@ def run_on_server_grid_search():
     tracks_path = train_path + '/log_8_20180902_000000000000.csv'
     sessions_path = train_path + '/session_log_8_20180902_000000000000.csv'
 
+    now = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M")
+    path_write = 'models/grid_search_' + now + '.txt'
+
     x_rnn, x_fc, y = utils.load_training_data_simple(tracks_path, sessions_path)
 
     s = x_rnn.shape[0]
     shuffle_indices = np.random.permutation(np.arange(s))
-    indices_train = shuffle_indices[:int(s*0.65)]
-    indices_valid = shuffle_indices[int(s*0.65):int(s*0.75)]
-    indices_test = shuffle_indices[int(s*0.75):]
+    indices_train = shuffle_indices[:int(s*0.1)]
+    indices_valid = shuffle_indices[int(s*0.1):int(s*0.12)]
+    indices_test = shuffle_indices[int(s*0.20):int(s*0.50)]
 
     x_rnn_train = x_rnn[indices_train,:,:]
     x_fc_train = x_fc[indices_train,:]
@@ -377,14 +386,23 @@ def run_on_server_grid_search():
     x_fc_test = x_fc[indices_test,:]
     y_test = y[indices_test,:]
 
+    print(x_rnn.shape)
+    print(x_rnn_train.shape, x_rnn_valid.shape, x_rnn_test.shape)
+
+    with open(path_write, 'a') as f:
+        f.write('x_rnn: (%u,%u,%u)' % (x_rnn.shape[0],x_rnn.shape[1],x_rnn.shape[2]))
+        f.write(', x_rnn_train: (%u)' % (x_rnn_train.shape[0]))
+        f.write(', x_rnn_valid: (%u)' % (x_rnn_valid.shape[0]))
+        f.write(', x_rnn_test: (%u) \n' % (x_rnn_test.shape[0]))
+
     del x_rnn, x_fc, y
 
     batch_size = 64
-    epochs = 50
+    epochs = 30
 
     grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
             x_fc_valid, y_valid, x_rnn_test, x_fc_test, y_test,
-            batch_size = batch_size, epochs = epochs)
+            batch_size = batch_size, epochs = epochs, path = path_write)
 
     end = time.process_time()
     print("Time used: %4.2f seconds" % (end-start))
@@ -392,7 +410,13 @@ def run_on_server_grid_search():
 
 def run_local_grid_search():
     start = time.process_time()
+
+    now = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M")
+    path_write = 'models/grid_search_' + now + '.txt'
+
     x_rnn, x_fc, y = utils.load_training_data_simple()
+
+    print(x_rnn.shape)
 
     # Generate validation set
     s = x_rnn.shape[0]
@@ -413,6 +437,12 @@ def run_local_grid_search():
     x_fc_test = x_fc[indices_test,:]
     y_test = y[indices_test,:]
 
+    with open(path_write, 'a') as f:
+        f.write('x_rnn: (%u,%u,%u)' % (x_rnn.shape[0],x_rnn.shape[1],x_rnn.shape[2]))
+        f.write(', x_rnn_train: (%u)' % (x_rnn_train.shape[0]))
+        f.write(', x_rnn_valid: (%u)' % (x_rnn_valid.shape[0]))
+        f.write(', x_rnn_test: (%u) \n' % (x_rnn_test.shape[0]))
+
     del x_rnn, x_fc, y
 
     # Generate model
@@ -421,7 +451,7 @@ def run_local_grid_search():
 
     grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
             x_fc_valid, y_valid, x_rnn_test, x_fc_test, y_test,
-            batch_size = batch_size, epochs = epochs)
+            batch_size = batch_size, epochs = epochs, path = path_write)
 
 
 if __name__ == '__main__':
