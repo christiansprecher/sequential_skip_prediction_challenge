@@ -22,6 +22,8 @@ import utils
 from utils import Training_Data_Loader
 from custom_losses_and_metrics import (selective_hinge as s_hinge,
     mean_hinge_accuracy as m_hinge_acc,
+    logistic_loss as log_loss,
+    mean_logistic_loss_accuracy as m_log_acc,
     selective_binary_accuracy as s_binary_acc,
     normed_selective_binary_accuracy as ns_binary_acc,
     average_mean_accuracy as avg_mean_acc,
@@ -131,6 +133,15 @@ class Model:
         elif loss == 'm_hinge_acc':
             self.model.compile(optimizer = optimizer_v, loss = m_hinge_acc,
                 metrics=[ns_binary_acc, avg_mean_acc, fp_acc])
+
+        elif loss == 'log_loss':
+            self.model.compile(optimizer = optimizer_v, loss = log_loss,
+                metrics=[ns_binary_acc, avg_mean_acc, fp_acc])
+
+        elif loss == 'm_log_acc':
+            self.model.compile(optimizer = optimizer_v, loss = m_log_acc,
+                metrics=[ns_binary_acc, avg_mean_acc, fp_acc])
+
         else:
             self.model.compile(optimizer = optimizer_v, loss = loss,
                 metrics=[ns_binary_acc, avg_mean_acc, fp_acc])
@@ -211,6 +222,8 @@ class Model:
         self.model = load_model(path,
             custom_objects={'selective_hinge': s_hinge,
             'mean_hinge_accuracy' : m_hinge_acc,
+            'logistic_loss' : log_loss,
+            'mean_logistic_loss_accuracy' : m_log_acc,
             'normed_selective_binary_accuracy' : ns_binary_acc,
             'average_mean_accuracy' : avg_mean_acc,
             'first_prediction_accuracy' : fp_acc})
@@ -230,8 +243,8 @@ class Model:
                 # Plot training & validation accuracy values
                 plt.plot(self.history.history[key[4:]])
                 plt.plot(self.history.history[key])
-                plt.title('Model accuracy')
-                plt.ylabel('Accuracy')
+                plt.title('Model ' + key[4:])
+                plt.ylabel(key[4:])
                 plt.xlabel('Epoch')
                 plt.legend(['Train', 'Test'], loc='upper left')
                 plot_name = (self.path + self.model_name + '_'

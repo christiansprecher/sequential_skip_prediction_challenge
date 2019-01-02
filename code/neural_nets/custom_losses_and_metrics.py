@@ -35,6 +35,34 @@ def mean_hinge_accuracy(y_true, y_pred):
     y_normed = (y_clear / weights) / num_predictions_rep
     return K.sum(y_normed,axis=1)
 
+# Logistic loss which goes over all elements
+def logistic_loss(y_true, y_pred):
+    return K.mean(K.log(K.ones_like(y_true,'float32') + K.exp(- y_true * y_pred)), axis = -1)
+
+# Logistic loss weighted similar to accuracy
+def mean_logistic_loss_accuracy(y_true, y_pred):
+    ones = K.ones_like(y_true,'float32')
+    dim = 20
+
+    y_log_loss = K.log(ones + K.exp(- y_true * y_pred))
+    y_score_pos = K.abs(y_true)
+    y_score_neg = ones - K.abs(y_true)
+
+    num_predictions = K.expand_dims(K.sum(y_score_pos, axis = 1), axis = 1)
+    num_predictions_rep = K.repeat_elements(num_predictions, rep = dim, axis = 1)
+
+    predict_start = K.cast( K.expand_dims(K.argmax(y_score_pos, axis = 1),
+        axis = 1), 'float32')
+    predict_start_rep = K.repeat_elements(predict_start, rep = dim, axis = 1)
+
+    cumsum = K.cumsum(ones,axis=1)
+    weights = cumsum - predict_start_rep + y_score_neg * dim
+
+    y_cumsum = K.cumsum(y_log_loss,axis=1)
+    y_clear = y_cumsum * y_score_pos
+    y_normed = (y_clear / weights) / num_predictions_rep
+    return K.sum(y_normed,axis=1)
+
 
 ################### CUSTOM METRICS ###########################################
 
