@@ -245,7 +245,7 @@ def predict_on_server_simple():
     submission_path = path + '/submissions'
 
     model = Hybrid()
-    model.load_model('hybrid_45_0.2835')
+    model.load_model('hybrid_2019-01-02_16:36')
 
     predict_logs = sorted(glob.glob(test_path + "/log_*.csv"))
 
@@ -271,9 +271,15 @@ def run_on_server_using_generator():
     rnn_layer_sizes = np.array([128, 64, 32])
     dense_layer_parallel_sizes = np.array([32, 32])
     dense_layer_sequential_sizes = np.array([64, 32, 1])
-    dropout_prob_rnn = 0.3
-    dropout_prob_dense = 0.3
+    dropout_prob_rnn = 0.1
+    dropout_prob_dense = 0.1
     lambda_reg_dense = 0.001
+    lambda_reg_rnn = 0.001
+    merge = 'concatenate'
+
+    optimizer = 'Adam'
+    lr = 0.001
+    loss = 'm_hinge_acc'
 
     model = Hybrid()
     model.build_model(
@@ -282,15 +288,29 @@ def run_on_server_using_generator():
         dense_layer_sequential_sizes = dense_layer_sequential_sizes,
         dropout_prob_rnn = dropout_prob_rnn,
         dropout_prob_dense = dropout_prob_dense,
-        lambda_reg_dense = lambda_reg_dense)
-    model.compile()
+        lambda_reg_rnn = lambda_reg_rnn,
+        lambda_reg_dense = lambda_reg_dense,
+        merge = merge)
+    model.compile(optimizer = optimizer, loss = loss, lr = lr)
 
     model.print_summary()
-
-    model.fit_generator(path, epochs=10000, batch_size = 64,
-    steps_per_epoch = 1000, validation_steps = 100, verbosity = 2, patience = 50,
+    model.fit_generator(path, epochs=1000, batch_size = 128,
+    steps_per_epoch = 50, validation_steps = 50, verbosity = 2, patience = 10,
     iterations_per_file = 50)
+    model.plot_training()
+    model.save_model()
 
+    model.compile(optimizer = optimizer, loss = loss, lr = 0.1 * lr)
+    model.fit_generator(path, epochs=1000, batch_size = 128,
+    steps_per_epoch = 50, validation_steps = 100, verbosity = 2, patience = 40,
+    iterations_per_file = 50)
+    model.plot_training()
+    model.save_model()
+
+    model.compile(optimizer = optimizer, loss = loss, lr = 0.01 * lr)
+    model.fit_generator(path, epochs=1000, batch_size = 128,
+    steps_per_epoch = 50, validation_steps = 100, verbosity = 2, patience = 100,
+    iterations_per_file = 50)
     model.plot_training()
     model.save_model()
 
@@ -309,6 +329,10 @@ def run_local_using_generator():
     dropout_prob_dense = 0.3
     lambda_reg_dense = 0.001
 
+    optimizer = 'Adam'
+    lr = 0.0003
+    loss = 'm_hinge_acc'
+
     model = Hybrid()
     model.build_model(
         rnn_layer_sizes = rnn_layer_sizes,
@@ -317,13 +341,13 @@ def run_local_using_generator():
         dropout_prob_rnn = dropout_prob_rnn,
         dropout_prob_dense = dropout_prob_dense,
         lambda_reg_dense = lambda_reg_dense)
-    model.compile()
+    model.compile(optimizer = optimizer, loss = loss, lr = lr)
 
     model.print_summary()
 
     model.fit_generator(path, epochs=20, batch_size = 64,
-    steps_per_epoch = 50, validation_steps = 10, verbosity=2, patience = 50,
-    iterations_per_file = 5)
+    steps_per_epoch = 250, validation_steps = 250, verbosity=2, patience = 10,
+    iterations_per_file = 250)
 
     model.plot_training()
     model.save_model()

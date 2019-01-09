@@ -159,7 +159,8 @@ class Model:
             {'output': y_train},
             validation_data=({'tracks_input': x_valid_rnn, 'session_input': x_valid_fc},
             {'output': y_valid}),
-            epochs=epochs, batch_size=batch_size, callbacks = self.callbacks, verbose = verbosity)
+            epochs=epochs, batch_size=batch_size, callbacks = self.callbacks, verbose = verbosity,
+            validation_split = 0.2)
 
         n_epochs = len(self.history.history['loss'])
         print('Model trained for %u epochs' % n_epochs)
@@ -172,7 +173,7 @@ class Model:
 
         # define callbacks
         self.callbacks = [EarlyStopping(monitor='val_loss', patience=patience),
-             ModelCheckpoint(filepath=self.path + self.model_name + '_{epoch:02d}_{val_loss:.4f}.h5',
+             ModelCheckpoint(filepath=self.path + self.model_name + '_{epoch:02d}_{val_average_mean_accuracy:.4f}.h5',
                 monitor='val_loss', save_best_only=False)]
 
         n_files = len(glob.glob(path + "/training_set_preproc/log_*.csv"))
