@@ -247,7 +247,7 @@ class Model:
                 plt.title('Model ' + key[4:])
                 plt.ylabel(key[4:])
                 plt.xlabel('Epoch')
-                plt.legend(['Train', 'Test'], loc='upper left')
+                plt.legend(['Train', 'Valid'], loc='upper left')
                 plot_name = (self.path + self.model_name + '_'
                     + self.now + '_' + key[4:] + '.png')
                 plt.savefig(plot_name, bbox_inches='tight')
@@ -260,7 +260,7 @@ class Model:
         plt.title('Model loss')
         plt.ylabel('Loss')
         plt.xlabel('Epoch')
-        plt.legend(['Train', 'Test'], loc='upper left')
+        plt.legend(['Train', 'Valid'], loc='upper left')
         plot_name = (self.path + self.model_name + '_'
             + self.now + '_loss.png')
         plt.savefig(plot_name, bbox_inches='tight')

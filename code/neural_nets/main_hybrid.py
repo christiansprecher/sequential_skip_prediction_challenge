@@ -357,11 +357,11 @@ def run_local_using_generator():
 
 def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
         x_fc_valid, y_valid, x_rnn_test, x_fc_test, y_test,
-        path, batch_size = 64, epochs = 50):
+        path, batch_size = 64, epochs = 80):
 
-    rnn_layer_sizes = np.array([128, 64, 64, 64, 64])
-    dense_layer_parallel_sizes = np.array([64, 64, 64, 64])
-    dense_layer_sequential_sizes = np.array([32, 32, 32, 1])
+    rnn_layer_sizes = np.array([32, 32, 16])
+    dense_layer_parallel_sizes = np.array([32, 32, 16])
+    dense_layer_sequential_sizes = np.array([32, 32, 1])
     dropout_prob_rnn = 0.1
     dropout_prob_dense = 0.1
     lambda_reg_dense = 0.001
@@ -372,7 +372,7 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
     # loss_range = ['s_hinge','m_hinge_acc']
     lr_range = [0.001]
     optimizer_range = ['Adam']
-    loss_range = ['m_log_acc', 'log_loss']
+    loss_range = ['s_hinge', 'm_hinge_acc']
     merge_range = ['multiply', 'add', 'concatenate', 'maximum', 'None']
 
     model_nr = ( len(lr_range) * len(optimizer_range) * len(loss_range)
@@ -415,7 +415,8 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
                     model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
                         x_fc_valid, y_valid,
                         epochs = epochs, batch_size = batch_size,
-                        verbosity = 0, patience = 40)
+                        verbosity = 0, patience = 10)
+                    model.print_summary()
                     model.plot_training()
                     model.save_model()
 
@@ -456,9 +457,9 @@ def run_on_server_grid_search():
 
     s = x_rnn.shape[0]
     shuffle_indices = np.random.permutation(np.arange(s))
-    indices_train = shuffle_indices[:int(s*0.1)]
-    indices_valid = shuffle_indices[int(s*0.1):int(s*0.12)]
-    indices_test = shuffle_indices[int(s*0.20):int(s*0.50)]
+    indices_train = shuffle_indices[:int(s*0.5)]
+    indices_valid = shuffle_indices[int(s*0.5):int(s*0.75)]
+    indices_test = shuffle_indices[int(s*0.75):]
 
     x_rnn_train = x_rnn[indices_train,:,:]
     x_fc_train = x_fc[indices_train,:]
@@ -484,7 +485,7 @@ def run_on_server_grid_search():
     del x_rnn, x_fc, y
 
     batch_size = 64
-    epochs = 300
+    epochs = 100
 
     grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
             x_fc_valid, y_valid, x_rnn_test, x_fc_test, y_test,
