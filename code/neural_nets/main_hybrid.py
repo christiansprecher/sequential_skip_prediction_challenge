@@ -372,8 +372,9 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
     # loss_range = ['s_hinge','m_hinge_acc']
     lr_range = [0.001]
     optimizer_range = ['Adam']
-    loss_range = ['s_hinge', 'm_hinge_acc']
-    merge_range = ['multiply', 'add', 'concatenate', 'maximum', 'None']
+    loss_range = ['s_hinge', 'm_hinge_acc','log_loss','m_log_acc']
+    # merge_range = ['multiply', 'add', 'concatenate', 'maximum', 'RNN_Single', 'RNN_Concat']
+    merge_range = ['RNN_Concat']
 
     model_nr = ( len(lr_range) * len(optimizer_range) * len(loss_range)
         * len(merge_range))
@@ -388,15 +389,27 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
                     model_idx = model_idx + 1
                     print('Model %u out of %u' % (model_idx,model_nr))
 
-                    if merge == 'None':
-                        model = Single_RNN_Full()
+                    if merge == 'RNN_Single':
+                        model = Single_RNN_Full(model_name = 'rnn_single')
                         model.build_model(
                             rnn_layer_sizes = rnn_layer_sizes,
                             dense_layer_sequential_sizes = dense_layer_sequential_sizes,
                             dropout_prob_rnn = dropout_prob_rnn,
                             dropout_prob_dense = dropout_prob_dense,
                             lambda_reg_dense = lambda_reg_dense,
-                            lambda_reg_rnn = lambda_reg_rnn)
+                            lambda_reg_rnn = lambda_reg_rnn,
+                            multiple_concatenate = False)
+
+                    elif merge == 'RNN_Concat':
+                        model = Single_RNN_Full(model_name = 'rnn_concat')
+                        model.build_model(
+                            rnn_layer_sizes = rnn_layer_sizes,
+                            dense_layer_sequential_sizes = dense_layer_sequential_sizes,
+                            dropout_prob_rnn = dropout_prob_rnn,
+                            dropout_prob_dense = dropout_prob_dense,
+                            lambda_reg_dense = lambda_reg_dense,
+                            lambda_reg_rnn = lambda_reg_rnn,
+                            multiple_concatenate = True)
 
                     else:
                         model = Hybrid(model_name = 'hybrid_' + merge)

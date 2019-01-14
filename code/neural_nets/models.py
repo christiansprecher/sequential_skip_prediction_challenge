@@ -365,7 +365,8 @@ class Single_RNN_Full(Model):
         dropout_prob_rnn = 0.3,
         dropout_prob_dense = 0.3,
         lambda_reg_rnn = 0.001,
-        lambda_reg_dense = 0.001):
+        lambda_reg_dense = 0.001,
+        multiple_concatenate = False):
 
         self.rnn_layer_sizes = rnn_layer_sizes
         self.dense_layer_sequential_sizes = dense_layer_sequential_sizes
@@ -373,6 +374,7 @@ class Single_RNN_Full(Model):
         self.dropout_prob_dense = dropout_prob_dense
         self.lambda_reg_rnn = lambda_reg_rnn
         self.lambda_reg_dense = lambda_reg_dense
+        self.multiple_concatenate = multiple_concatenate
 
         # define inputs
         tracks_input = Input(self.input_shape_tracks , dtype='float32', name='tracks_input')
@@ -385,9 +387,17 @@ class Single_RNN_Full(Model):
         # RNN part
         x = LSTM(self.rnn_layer_sizes[0],return_sequences=True,
             kernel_regularizer=l2(self.lambda_reg_rnn))(x_input)
-        for i in range(1, self.rnn_layer_sizes.size):
-            x = LSTM(self.rnn_layer_sizes[i],return_sequences=True,
-            kernel_regularizer=l2(self.lambda_reg_rnn))(x)
+
+        if self.multiple_concatenate:
+            for i in range(1, self.rnn_layer_sizes.size):
+                x = concatenate([x, session_rep], axis = -1)
+                x = LSTM(self.rnn_layer_sizes[i],return_sequences=True,
+                kernel_regularizer=l2(self.lambda_reg_rnn))(x)
+
+        else:
+            for i in range(1, self.rnn_layer_sizes.size):
+                x = LSTM(self.rnn_layer_sizes[i],return_sequences=True,
+                kernel_regularizer=l2(self.lambda_reg_rnn))(x)
 
         x = BatchNormalization()(x)
         x = Dropout(self.dropout_prob_rnn)(x)
