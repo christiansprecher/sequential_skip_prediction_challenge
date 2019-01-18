@@ -11,7 +11,7 @@ import datetime
 from models import Hybrid, Single_RNN_Full
 import utils
 
-
+# Task 0:
 def run_local_test():
     x_rnn, x_fc, y = utils.load_training_data_simple()
 
@@ -37,36 +37,37 @@ def run_local_test():
     del x_rnn, x_fc, y
 
     # Generate model
-    rnn_layer_sizes = np.array([128, 32])
+    rnn_layer_sizes = np.array([128, 32, 32])
     dense_layer_parallel_sizes = np.array([32])
-    dense_layer_sequential_sizes = np.array([20, 1])
+    dense_layer_sequential_sizes = np.array([32, 20, 1])
     # rnn_layer_sizes = np.array([ 32])
     # dense_layer_parallel_sizes = np.array([32])
     # dense_layer_sequential_sizes = np.array([1])
-    dropout_prob_rnn = 0
-    dropout_prob_dense = 0
-    lambda_reg_dense = 0.00
-    lambda_reg_rnn = 0.00
+    dropout_prob_rnn = 0.1
+    dropout_prob_dense = 0.1
+    lambda_reg_dense = 0.001
+    lambda_reg_rnn = 0.001
 
-    model = Hybrid()
+    # model = Hybrid()
+    # model.build_model(
+    #     rnn_layer_sizes = rnn_layer_sizes,
+    #     dense_layer_parallel_sizes = dense_layer_parallel_sizes,
+    #     dense_layer_sequential_sizes = dense_layer_sequential_sizes,
+    #     dropout_prob_rnn = dropout_prob_rnn,
+    #     dropout_prob_dense = dropout_prob_dense,
+    #     lambda_reg_dense = lambda_reg_dense,
+    #     lambda_reg_rnn = lambda_reg_rnn,
+    #     merge = 'maximum')
+
+    model = Single_RNN_Full(model_name = 'rnn_multiconcat')
     model.build_model(
         rnn_layer_sizes = rnn_layer_sizes,
-        dense_layer_parallel_sizes = dense_layer_parallel_sizes,
         dense_layer_sequential_sizes = dense_layer_sequential_sizes,
         dropout_prob_rnn = dropout_prob_rnn,
         dropout_prob_dense = dropout_prob_dense,
         lambda_reg_dense = lambda_reg_dense,
         lambda_reg_rnn = lambda_reg_rnn,
-        merge = 'maximum')
-
-    # model = Single_RNN_Full()
-    # model.build_model(
-    #     rnn_layer_sizes = rnn_layer_sizes,
-    #     dense_layer_sequential_sizes = dense_layer_sequential_sizes,
-    #     dropout_prob_rnn = dropout_prob_rnn,
-    #     dropout_prob_dense = dropout_prob_dense,
-    #     lambda_reg_dense = lambda_reg_dense,
-    #     lambda_reg_rnn = lambda_reg_rnn)
+        multiple_concatenate = True)
 
     model.compile(optimizer = 'Adam', loss = 'hinge')
 
@@ -81,6 +82,7 @@ def run_local_test():
     model.evaluate(x_rnn_test, x_fc_test, y_test, verbosity=2)
     # model.predict(x_rnn_test, x_fc_test, write_to_file = True)
 
+# Task 1:
 def run_on_server_simple():
     print(device_lib.list_local_devices())
 
@@ -91,38 +93,50 @@ def run_on_server_simple():
     test_path = path + '/test_set_preproc'
     submission_path = path + '/submissions'
 
-    tracks_path = train_path + '/log_8_20180902_000000000000.csv'
-    sessions_path = train_path + '/session_log_8_20180902_000000000000.csv'
+    tracks_path1 = train_path + '/log_8_20180902_000000000000.csv'
+    sessions_path1 = train_path + '/session_log_8_20180902_000000000000.csv'
 
-    x_rnn, x_fc, y = utils.load_training_data_simple(tracks_path, sessions_path)
+    tracks_path2 = train_path + '/log_0_20180807_000000000000.csv'
+    sessions_path2 = train_path + '/session_log_0_20180807_000000000000.csv'
 
-    s = x_rnn.shape[0]
-    shuffle_indices = np.random.permutation(np.arange(s))
-    indices_train = shuffle_indices[:int(s*0.2)]
-    indices_valid = shuffle_indices[int(s*0.2):int(s*0.25)]
-    indices_test = shuffle_indices[int(s*0.75):]
+    tracks_path3 = train_path + '/log_6_20180801_000000000000.csv'
+    sessions_path3 = train_path + '/session_log_6_20180801_000000000000.csv'
 
-    x_rnn_train = x_rnn[indices_train,:,:]
-    x_fc_train = x_fc[indices_train,:]
-    y_train = y[indices_train,:]
+    x_rnn_train, x_fc_train, y_train = utils.load_training_data_simple(tracks_path1, sessions_path1)
+    x_rnn_valid, x_fc_valid, y_valid = utils.load_training_data_simple(tracks_path2, sessions_path2)
+    x_rnn_test, x_fc_test, y_test = utils.load_training_data_simple(tracks_path3, sessions_path3)
 
-    x_rnn_valid = x_rnn[indices_valid,:,:]
-    x_fc_valid = x_fc[indices_valid,:]
-    y_valid = y[indices_valid,:]
+    # s = x_rnn.shape[0]
+    # shuffle_indices = np.random.permutation(np.arange(s))
+    # indices_train = shuffle_indices[:int(s*0.8)]
+    # indices_valid = shuffle_indices[int(s*0.8):int(s*0.9)]
+    # indices_test = shuffle_indices[int(s*0.9):]
+    #
+    # x_rnn_train = x_rnn[indices_train,:,:]
+    # x_fc_train = x_fc[indices_train,:]
+    # y_train = y[indices_train,:]
+    #
+    # x_rnn_valid = x_rnn[indices_valid,:,:]
+    # x_fc_valid = x_fc[indices_valid,:]
+    # y_valid = y[indices_valid,:]
+    #
+    # x_rnn_test = x_rnn[indices_test,:,:]
+    # x_fc_test = x_fc[indices_test,:]
+    # y_test = y[indices_test,:]
+    #
+    # del x_rnn, x_fc, y
 
-    x_rnn_test = x_rnn[indices_test,:,:]
-    x_fc_test = x_fc[indices_test,:]
-    y_test = y[indices_test,:]
-
-    del x_rnn, x_fc, y
-
-    rnn_layer_sizes = np.array([128, 64, 32])
-    dense_layer_parallel_sizes = np.array([32, 32])
-    dense_layer_sequential_sizes = np.array([64, 32, 1])
-    dropout_prob_rnn = 0.1
-    dropout_prob_dense = 0.1
+    # rnn_layer_sizes = np.array([128, 64, 32])
+    # dense_layer_parallel_sizes = np.array([32, 32])
+    # dense_layer_sequential_sizes = np.array([64, 32, 1])
+    rnn_layer_sizes = np.array([1024, 1024, 512, 512])
+    dense_layer_parallel_sizes = np.array([512, 512])
+    dense_layer_sequential_sizes = np.array([512, 64, 1])
+    dropout_prob_rnn = 0.3
+    dropout_prob_dense = 0.3
     lambda_reg_dense = 0.001
     lambda_reg_rnn = 0.001
+    merge = 'concatenate'
 
     model = Hybrid()
     model.build_model(
@@ -133,14 +147,15 @@ def run_on_server_simple():
         dropout_prob_dense = dropout_prob_dense,
         lambda_reg_dense = lambda_reg_dense,
         lambda_reg_rnn = lambda_reg_rnn,
-        merge = 'concatenate')
+        merge = merge)
     model.compile(optimizer = 'Adam', loss = 'm_hinge_acc', lr = 0.001)
 
     model.print_summary()
+    # model.plot_model()
 
     model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
         x_fc_valid, y_valid, epochs=300, batch_size = 128,
-        verbosity=2, patience = 40)
+        verbosity=2, patience = 20)
 
     model.plot_training()
     model.save_model()
@@ -166,6 +181,7 @@ def run_on_server_simple():
     end = time.process_time()
     print("All files written, time used: %4.2f seconds" % (end-start))
 
+# Task 7:
 def continue_on_server_simple():
     print(device_lib.list_local_devices())
 
@@ -235,7 +251,7 @@ def continue_on_server_simple():
     end = time.process_time()
     print("All files written, time used: %4.2f seconds" % (end-start))
 
-
+# Task 2:
 def predict_on_server_simple():
 
     start = time.process_time()
@@ -263,6 +279,7 @@ def predict_on_server_simple():
     end = time.process_time()
     print("All files written, time used: %4.2f seconds" % (end-start))
 
+#Task 3:
 def run_on_server_using_generator():
 
     start = time.process_time()
@@ -317,6 +334,7 @@ def run_on_server_using_generator():
     end = time.process_time()
     print("Model trained, time used: %4.2f seconds" % (end-start))
 
+#Task 4:
 def run_local_using_generator():
 
     start = time.process_time()
@@ -451,7 +469,7 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
                             f.write("%s: %.2f%%, " % (model.model.metrics_names[i], (eval[i]*100)))
                         f.write('\n')
 
-
+#Task 6:
 def run_on_server_grid_search():
     start = time.process_time()
     path = '/cluster/scratch/cspreche/spotify_challenge'
@@ -507,7 +525,7 @@ def run_on_server_grid_search():
     end = time.process_time()
     print("Time used: %4.2f seconds" % (end-start))
 
-
+#Task 5:
 def run_local_grid_search():
     start = time.process_time()
 
