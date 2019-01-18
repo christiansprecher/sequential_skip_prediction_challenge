@@ -4,7 +4,7 @@ from datagen import Datagen
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--folder', required=True)
+    parser.add_argument('-f', '--folder', required=False, default='data')
     parser.add_argument('-v', '--verbosity', required=False, default=1)
     parser.add_argument('-r', '--training', required=False, default=0)
     parser.add_argument('-t', '--test', required=False, default=0)

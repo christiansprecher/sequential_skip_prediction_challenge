@@ -5,11 +5,12 @@ import numpy as np
 
 ################### CUSTOM LOSSES ############################################
 
-# Selective Hinge Loss and Binary Accuracy
+# Selective Hinge Loss
 # y_pred should be -1 if not skipped, 0 if does not have to be predicted, 1 if skipped
 def selective_hinge(y_true, y_pred):
     return K.mean(K.maximum(1. - y_true * y_pred, 0.) * K.abs(y_true), axis=-1)
 
+# Weighted Hinge
 # Use selective hinge, but apply with same weight as average mean accuracy
 def mean_hinge_accuracy(y_true, y_pred):
     ones = K.ones_like(y_true,'float32')
@@ -67,7 +68,6 @@ def mean_logistic_loss_accuracy(y_true, y_pred):
 ################### CUSTOM METRICS ###########################################
 
 
-
 # Accuracy is also calculated for nodes not to be predicted (first half)
 # Therefore, the best accuracy is about 0.5
 def selective_binary_accuracy(y_true, y_pred):
@@ -122,54 +122,3 @@ def first_prediction_accuracy(y_true, y_pred):
     first_prediction_acc = y_score_01 * first_prediction
 
     return K.sum(first_prediction_acc,axis=1)
-
-
-############### NUMPY CUSTOM METRICS ###########################################
-# Calculate mean average accuracy
-def np_cumulative_binary_accuracy(y_true, y_pred):
-
-    y_score = np.multiply(y_true, np.sign(y_pred)).astype(int)
-    y_score_01 = np.array(y_score > 0).astype(int)
-
-    a = ((y_true!=0).argmax(axis=1)).astype(int)
-    b = (y_true.shape[1] - ((np.flip(y_true,1)!=0).argmax(axis=1))).astype(int)
-
-    y_accuracy = np.zeros([y_true.shape[0],y_true.shape[1]])
-    scores = np.zeros(y_true.shape[0])
-
-    for i in range(y_true.shape[0]):
-        for j in range(a[i],b[i]):
-            print(i, j, np.sum(y_score_01[i,a[i]:(j+1)]))
-            y_accuracy[i,j] = (np.sum(y_score_01[i,a[i]:(j+1)]) * y_score_01[i,j] / (j - a[i] + 1))
-        scores[i] = np.sum(y_accuracy[i,:]) / (b[i]-a[i])
-
-    return np.mean(scores)
-
-def np_cumulative_binary_accuracy2(y_true, y_pred):
-
-    y_score = np.multiply(y_true, np.sign(y_pred)).astype(int)
-    y_score_01 = np.array(y_score > 0).astype(int)
-    y_score_abs = np.abs(y_score)
-
-    a = np.array((y_true!=0).argmax(axis=1)).astype(int)
-    a = np.expand_dims(a, axis=1)
-    y_a = np.tile(a,(1,y_true.shape[1]))
-
-    cumsum = np.cumsum(np.ones([y_true.shape[0],y_true.shape[1]]),axis=1)
-
-    y_cumsum = np.cumsum(y_score_01,axis=1)
-
-    y_weight = cumsum - y_a
-    #avoid zeros in weight
-    y_weight = y_weight + (np.ones([y_true.shape[0],y_true.shape[1]]) - y_score_abs) * y_true.shape[1]
-
-    y_accuracy = np.multiply(y_cumsum,y_score_01)
-
-    y_normed = np.divide(y_accuracy,y_weight)
-
-    y_numbers = np.tile(np.expand_dims(np.sum(y_score_abs,axis=1),axis=1),(1,y_true.shape[1]))
-    y_more_normed = np.divide(y_normed,y_numbers)
-
-    scores = np.sum(y_more_normed,axis=1)
-
-    return scores

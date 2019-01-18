@@ -2,8 +2,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
+# This files containes helper functions for loading data and creating submissions
 
 
+# Loader for batch-wise laoding of the training data
 class Training_Data_Loader:
     def __init__(self, track_file, batch_size):
 
@@ -44,8 +46,8 @@ class Training_Data_Loader:
 
 
 def load_training_data_simple(
-    tracks_path = "../../data/training_set_preproc/log_mini.csv",
-    sessions_path = "../../data/training_set_preproc/session_log_mini.csv"):
+    tracks_path = "data/training_set_preproc/log_mini.csv",
+    sessions_path = "data/training_set_preproc/session_log_mini.csv"):
 
     tracks = pd.read_csv(tracks_path)
     sessions = pd.read_csv(sessions_path)
@@ -69,8 +71,8 @@ def load_training_data_simple(
     return x_rnn, x_fc, y
 
 def load_training_data_batch(
-    tracks_path = "../../data/training_set_preproc/log_mini.csv",
-    sessions_path = "../../data/training_set_preproc/session_log_mini.csv",
+    tracks_path = "data/training_set_preproc/log_mini.csv",
+    sessions_path = "data/training_set_preproc/session_log_mini.csv",
     ):
 
     tracks = pd.read_csv(tracks_path)
@@ -95,8 +97,8 @@ def load_training_data_batch(
     return x_rnn, x_fc, y
 
 def load_test_data_simple(
-    tracks_path = "../../data/test_set_preproc/log_mini.csv",
-    sessions_path = "../../data/test_set_preproc/session_log_mini.csv"):
+    tracks_path = "data/test_set_preproc/log_mini.csv",
+    sessions_path = "data/test_set_preproc/session_log_mini.csv"):
 
     tracks = pd.read_csv(tracks_path)
     sessions = pd.read_csv(sessions_path)

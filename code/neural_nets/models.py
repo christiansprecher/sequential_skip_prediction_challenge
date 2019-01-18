@@ -71,7 +71,8 @@ class Model:
 
             loader = Training_Data_Loader(track, batch_size)
 
-            random_idx = random.sample(range(loader.n_slices), iterations_per_file)
+            random_idx = random.sample(range(loader.n_slices),
+                min(iterations_per_file,loader.n_slices))
             idx = (idx + 1 ) % n
 
             for k in range(len(random_idx)):
@@ -266,7 +267,7 @@ class Model:
         plt.savefig(plot_name, bbox_inches='tight')
 
 
-# hybrid models
+# Hybrid Models which treat the session and the track information in parallel before merging
 class Hybrid(Model):
 
     def __init__(self, model_name = 'hybrid'):
@@ -351,6 +352,7 @@ class Hybrid(Model):
         # create model and compile it
         self.model = K_Model(inputs=[tracks_input, session_input], outputs=[output])
 
+# Single RNN models which merge all the information before processing it
 class Single_RNN_Full(Model):
 
     def __init__(self, model_name = 'single_rnn_full'):

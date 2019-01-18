@@ -11,11 +11,11 @@ import datetime
 from models import Hybrid, Single_RNN_Full
 import utils
 
-# Task 0:
+# Task 00:
 def run_local_test():
     x_rnn, x_fc, y = utils.load_training_data_simple()
 
-    # Generate validation set
+    # Generate train, valid and test set
     s = x_rnn.shape[0]
     shuffle_indices = np.random.permutation(np.arange(s))
     indices_train = shuffle_indices[:int(s*0.5)]
@@ -40,38 +40,35 @@ def run_local_test():
     rnn_layer_sizes = np.array([128, 32, 32])
     dense_layer_parallel_sizes = np.array([32])
     dense_layer_sequential_sizes = np.array([32, 20, 1])
-    # rnn_layer_sizes = np.array([ 32])
-    # dense_layer_parallel_sizes = np.array([32])
-    # dense_layer_sequential_sizes = np.array([1])
     dropout_prob_rnn = 0.1
     dropout_prob_dense = 0.1
     lambda_reg_dense = 0.001
     lambda_reg_rnn = 0.001
 
-    # model = Hybrid()
-    # model.build_model(
-    #     rnn_layer_sizes = rnn_layer_sizes,
-    #     dense_layer_parallel_sizes = dense_layer_parallel_sizes,
-    #     dense_layer_sequential_sizes = dense_layer_sequential_sizes,
-    #     dropout_prob_rnn = dropout_prob_rnn,
-    #     dropout_prob_dense = dropout_prob_dense,
-    #     lambda_reg_dense = lambda_reg_dense,
-    #     lambda_reg_rnn = lambda_reg_rnn,
-    #     merge = 'maximum')
-
-    model = Single_RNN_Full(model_name = 'rnn_multiconcat')
+    model = Hybrid()
     model.build_model(
         rnn_layer_sizes = rnn_layer_sizes,
+        dense_layer_parallel_sizes = dense_layer_parallel_sizes,
         dense_layer_sequential_sizes = dense_layer_sequential_sizes,
         dropout_prob_rnn = dropout_prob_rnn,
         dropout_prob_dense = dropout_prob_dense,
         lambda_reg_dense = lambda_reg_dense,
         lambda_reg_rnn = lambda_reg_rnn,
-        multiple_concatenate = True)
+        merge = 'maximum')
 
-    model.compile(optimizer = 'Adam', loss = 'hinge')
+    # model = Single_RNN_Full(model_name = 'rnn_multiconcat')
+    # model.build_model(
+    #     rnn_layer_sizes = rnn_layer_sizes,
+    #     dense_layer_sequential_sizes = dense_layer_sequential_sizes,
+    #     dropout_prob_rnn = dropout_prob_rnn,
+    #     dropout_prob_dense = dropout_prob_dense,
+    #     lambda_reg_dense = lambda_reg_dense,
+    #     lambda_reg_rnn = lambda_reg_rnn,
+    #     multiple_concatenate = True)
 
-    model.plot_model()
+    model.compile(optimizer = 'Adam', loss = 'm_hinge_acc')
+
+    # model.plot_model()
     model.print_summary()
 
     model.fit(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
@@ -82,7 +79,7 @@ def run_local_test():
     model.evaluate(x_rnn_test, x_fc_test, y_test, verbosity=2)
     # model.predict(x_rnn_test, x_fc_test, write_to_file = True)
 
-# Task 1:
+# Task 10:
 def run_on_server_simple():
     print(device_lib.list_local_devices())
 
@@ -165,23 +162,7 @@ def run_on_server_simple():
     end = time.process_time()
     print("Model trained, time used: %4.2f seconds" % (end-start))
 
-
-
-    # predict_logs = sorted(glob.glob(test_path + "/log_*.csv"))
-    #
-    # for tracks_path in predict_logs:
-    #     dir = os.path.dirname(tracks_path)
-    #     file = os.path.basename(tracks_path)
-    #     sessions_path = dir + '/session_' + file
-    #     x_rnn, x_fc = utils.load_test_data_simple(tracks_path, sessions_path)
-    #
-    #     model.predict(x_rnn, x_fc, write_to_file = True,
-    #     overwrite = False, path = submission_path, verbosity = 2)
-
-    end = time.process_time()
-    print("All files written, time used: %4.2f seconds" % (end-start))
-
-# Task 7:
+# Task 11:
 def continue_on_server_simple():
     print(device_lib.list_local_devices())
 
@@ -236,22 +217,7 @@ def continue_on_server_simple():
     print("Model trained, time used: %4.2f seconds" % (end-start))
 
 
-
-    # predict_logs = sorted(glob.glob(test_path + "/log_*.csv"))
-    #
-    # for tracks_path in predict_logs:
-    #     dir = os.path.dirname(tracks_path)
-    #     file = os.path.basename(tracks_path)
-    #     sessions_path = dir + '/session_' + file
-    #     x_rnn, x_fc = utils.load_test_data_simple(tracks_path, sessions_path)
-    #
-    #     model.predict(x_rnn, x_fc, write_to_file = True,
-    #     overwrite = False, path = submission_path, verbosity = 2)
-
-    end = time.process_time()
-    print("All files written, time used: %4.2f seconds" % (end-start))
-
-# Task 2:
+# Task 12:
 def predict_on_server_simple():
 
     start = time.process_time()
@@ -279,7 +245,7 @@ def predict_on_server_simple():
     end = time.process_time()
     print("All files written, time used: %4.2f seconds" % (end-start))
 
-#Task 3:
+#Task 13:
 def run_on_server_using_generator():
 
     start = time.process_time()
@@ -317,24 +283,10 @@ def run_on_server_using_generator():
     model.plot_training()
     model.save_model()
 
-    model.compile(optimizer = optimizer, loss = loss, lr = 0.1 * lr)
-    model.fit_generator(path, epochs=1000, batch_size = 128,
-    steps_per_epoch = 50, validation_steps = 100, verbosity = 2, patience = 40,
-    iterations_per_file = 50)
-    model.plot_training()
-    model.save_model()
-
-    model.compile(optimizer = optimizer, loss = loss, lr = 0.01 * lr)
-    model.fit_generator(path, epochs=1000, batch_size = 128,
-    steps_per_epoch = 50, validation_steps = 100, verbosity = 2, patience = 100,
-    iterations_per_file = 50)
-    model.plot_training()
-    model.save_model()
-
     end = time.process_time()
     print("Model trained, time used: %4.2f seconds" % (end-start))
 
-#Task 4:
+#Task 03:
 def run_local_using_generator():
 
     start = time.process_time()
@@ -387,12 +339,10 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
 
     # lr_range = [0.1, 0.01, 0.001, 0.0001]
     # optimizer_range = ['SGD', 'Adam']
-    # loss_range = ['s_hinge','m_hinge_acc']
     lr_range = [0.001]
     optimizer_range = ['Adam']
     loss_range = ['s_hinge', 'm_hinge_acc','log_loss','m_log_acc']
-    # merge_range = ['multiply', 'add', 'concatenate', 'maximum', 'RNN_Single', 'RNN_Concat']
-    merge_range = ['RNN_Concat']
+    merge_range = ['multiply', 'add', 'concatenate', 'maximum', 'RNN_Single', 'RNN_Concat']
 
     model_nr = ( len(lr_range) * len(optimizer_range) * len(loss_range)
         * len(merge_range))
@@ -469,7 +419,7 @@ def grid_search(x_rnn_train, x_fc_train, y_train, x_rnn_valid,
                             f.write("%s: %.2f%%, " % (model.model.metrics_names[i], (eval[i]*100)))
                         f.write('\n')
 
-#Task 6:
+#Task 14:
 def run_on_server_grid_search():
     start = time.process_time()
     path = '/cluster/scratch/cspreche/spotify_challenge'
@@ -525,7 +475,7 @@ def run_on_server_grid_search():
     end = time.process_time()
     print("Time used: %4.2f seconds" % (end-start))
 
-#Task 5:
+#Task 04:
 def run_local_grid_search():
     start = time.process_time()
 
@@ -579,29 +529,31 @@ if __name__ == '__main__':
     io_args = parser.parse_args()
     task = io_args.task
 
-    if task == '0':
-        run_local_test()
-
-    elif task == '1':
+    # Server commands
+    if task == '10':
         run_on_server_simple()
 
-    elif task == '2':
+    elif task == '11':
+        continue_on_server_simple()
+
+    elif task == '12':
         predict_on_server_simple()
 
-    elif task == '3':
+    elif task == '13':
         run_on_server_using_generator()
 
-    elif task == '4':
-        run_local_using_generator()
-
-    elif task == '5':
-        run_local_grid_search()
-
-    elif task == '6':
+    elif task == '14':
         run_on_server_grid_search()
 
-    elif task == '7':
-        continue_on_server_simple()
+    # Local commands
+    elif task == '0':
+        run_local_test()
+
+    elif task == '3':
+        run_local_using_generator()
+
+    elif task == '4':
+        run_local_grid_search()
 
     else:
         print('Choose Task')
